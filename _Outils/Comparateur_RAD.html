@@ -1,0 +1,707 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Comparateur RAD Word — SUEZ Gestion d'Actif</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
+<style>
+:root{--bg:#F4F7FB;--panel:#fff;--panel2:#F8FAFD;--line:#E4EAF3;--line2:#CBD7E6;
+ --txt:#1E293B;--muted:#5B6B82;--faint:#93A2B8;--accent:#1B6FE8;--teal:#0D9488;--navy:#132446;
+ --ecart:#FCE4D6;--manq:#FFF2CC;--add:#16A34A;--del:#DC2626;
+ --shadow:0 1px 2px rgba(15,35,70,.05),0 10px 30px rgba(15,35,70,.06);
+ --mono:'JetBrains Mono',monospace;--sans:'Inter',system-ui,sans-serif;--disp:'Space Grotesk','Inter',sans-serif;}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--bg);color:var(--txt);font-family:var(--sans);font-size:14px;line-height:1.5;min-height:100vh}
+.wrap{max-width:1240px;margin:0 auto;padding:0 24px 70px}
+/* barre du haut */
+.top{position:sticky;top:0;z-index:50;background:rgba(255,255,255,.92);backdrop-filter:blur(8px);
+ border-bottom:1px solid var(--line);margin-bottom:26px}
+.top::after{content:'';position:absolute;left:0;right:0;bottom:0;height:2px;background:linear-gradient(90deg,var(--accent),var(--teal))}
+.top .inner{max-width:1240px;margin:0 auto;padding:12px 24px;display:flex;align-items:center;gap:14px}
+.logo{width:40px;height:40px;border-radius:11px;display:grid;place-items:center;flex:none;
+ background:linear-gradient(135deg,var(--accent),var(--teal));color:#fff;font-family:var(--mono);font-weight:600;font-size:17px;
+ box-shadow:0 5px 14px rgba(27,111,232,.28)}
+.top .btit{font-family:var(--disp);font-size:15px;font-weight:700;color:var(--navy)}
+.top .bsub{font-size:12px;color:var(--muted)}
+.top .sp{margin-left:auto}
+.btn{display:inline-flex;align-items:center;gap:7px;border-radius:10px;padding:9px 15px;font-size:13px;font-weight:600;
+ cursor:pointer;font-family:var(--sans);border:1px solid var(--line2);background:var(--panel);color:var(--txt);transition:all .12s}
+.btn:hover{border-color:var(--accent);color:var(--accent)}
+.btn.primary{background:linear-gradient(135deg,var(--accent),#1559BE);color:#fff;border:none;box-shadow:0 3px 12px rgba(27,111,232,.28)}
+.btn.primary:hover{filter:brightness(1.05);color:#fff}
+.btn.teal{background:linear-gradient(135deg,var(--teal),#0B7C72);color:#fff;border:none;box-shadow:0 3px 12px rgba(13,148,136,.26)}
+/* stats */
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px;margin-bottom:24px}
+.stat{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px 18px;box-shadow:var(--shadow)}
+.stat .v{font-family:var(--disp);font-size:26px;font-weight:700;color:var(--navy)}
+.stat .l{font-size:12px;color:var(--muted);margin-top:2px}
+.stat.k-ecart .v{color:#C2410C}.stat.k-comp .v{color:var(--teal)}.stat.k-orph .v{color:var(--faint)}
+h2.sec{font-family:var(--disp);font-size:17px;color:var(--navy);margin:26px 0 14px}
+/* table synthèse */
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);overflow:hidden}
+table.syn{width:100%;border-collapse:collapse;font-size:13px}
+table.syn thead th{background:linear-gradient(180deg,#20406B,#182F52);color:#EAF1FB;font-family:var(--mono);
+ font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.03em;text-align:left;padding:11px 12px;white-space:nowrap}
+table.syn tbody td{padding:9px 12px;border-bottom:1px solid var(--line);vertical-align:middle}
+table.syn tbody tr:nth-child(even) td{background:var(--panel2)}
+table.syn tbody tr.clic{cursor:pointer}
+table.syn tbody tr.clic:hover td{background:#EAF3FE}
+.num{text-align:right;font-family:var(--mono)}
+.badge{display:inline-block;font-family:var(--mono);font-size:10.5px;font-weight:600;border-radius:6px;padding:3px 8px}
+.b-eau{color:#1559BE;background:rgba(27,111,232,.10)}.b-asst{color:#0B7C72;background:rgba(13,148,136,.12)}
+.c-sur{color:#15803D;background:#E2EFDA}.c-prob{color:#B45309;background:#FFF2CC}
+.c-verif{color:#C2410C;background:#F8CBAD}.c-sans{color:#5B6B82;background:#E5E9F0}
+/* détail commune */
+.detail{margin-top:18px}
+.commune-blk{background:var(--panel);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);margin-bottom:14px;overflow:hidden}
+.commune-hd{display:flex;align-items:center;gap:12px;padding:14px 18px;cursor:pointer;background:var(--panel2)}
+.commune-hd:hover{background:#EEF3FB}
+.commune-hd .nm{font-family:var(--disp);font-weight:700;color:var(--navy);font-size:15px}
+.commune-hd .meta{font-size:12px;color:var(--muted);margin-left:auto;font-family:var(--mono)}
+.commune-hd .chev{transition:transform .15s;color:var(--faint)}
+.commune-blk.open .chev{transform:rotate(90deg)}
+.commune-body{display:none;overflow:auto}
+.commune-blk.open .commune-body{display:block}
+table.diff{width:100%;border-collapse:collapse;font-size:12.5px}
+table.diff thead th{position:sticky;top:0;background:#EEF2F8;color:var(--muted);font-family:var(--mono);font-size:10px;
+ text-transform:uppercase;letter-spacing:.03em;text-align:left;padding:9px 12px;border-bottom:1px solid var(--line2)}
+table.diff tbody td{padding:8px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+table.diff tr.n-ecart td{background:var(--ecart)}
+table.diff tr.n-manq td{background:var(--manq)}
+.na{color:var(--faint);font-style:italic}
+.pill{font-family:var(--mono);font-size:10px;font-weight:600;border-radius:5px;padding:2px 7px;white-space:nowrap}
+.p-ecart{color:#9A3412;background:#FED7AA}.p-vide{color:#92400E;background:#FDE68A}
+.p-nat{color:#1E40AF;background:#DBEAFE}.p-rad{color:#7C2D12;background:#FEF3C7}
+.empty-c{padding:16px 18px;color:var(--muted);font-size:13px}
+/* écran de chargement */
+#loader{position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:var(--bg);font-family:var(--sans)}
+#loader::before{content:'';position:absolute;inset:0;pointer-events:none;
+ background:radial-gradient(900px 440px at 82% -8%,rgba(27,111,232,.08),transparent 60%),radial-gradient(720px 400px at 4% 0%,rgba(13,148,136,.07),transparent 60%)}
+#loader .card{position:relative;width:min(600px,92vw);background:#fff;border:1px solid var(--line);border-radius:18px;
+ box-shadow:0 1px 2px rgba(15,35,70,.05),0 18px 50px rgba(15,35,70,.12);padding:26px 30px}
+.bl{display:flex;align-items:center;gap:12px;margin-bottom:22px}
+.bl .brandtxt{font-family:var(--disp);font-size:14px;font-weight:700;color:var(--navy)}
+.bl .brandsub{font-size:12px;color:var(--muted)}
+.bl .author{margin-left:auto;font-size:12px;font-weight:600;color:#fff;background:linear-gradient(135deg,var(--accent),#1559BE);
+ border-radius:99px;padding:7px 15px;box-shadow:0 4px 14px rgba(27,111,232,.28)}
+#loader .title{font-family:var(--disp);font-size:26px;font-weight:700;color:var(--navy);margin-bottom:8px}
+#loader .desc{font-size:13px;color:var(--muted);line-height:1.6;margin-bottom:20px}
+.drop{display:block;border:1.5px dashed var(--line2);border-radius:14px;background:var(--panel2);padding:24px 20px;text-align:center;cursor:pointer;transition:all .15s}
+.drop:hover{border-color:var(--accent);background:#FBFDFF}
+.drop .t{font-size:13px;color:#334155;font-weight:600}.drop .s{font-size:12px;color:var(--faint);margin-top:4px}
+#loader.drag .drop{border-color:var(--accent);background:#eff5fe}
+.orline{display:flex;align-items:center;text-align:center;color:var(--faint);font-size:11px;margin:14px 0}
+.orline::before,.orline::after{content:'';flex:1;height:1px;background:var(--line)}
+.orline span{padding:0 12px}
+.folder{width:100%;background:#fff;border:1.5px solid var(--line2);border-radius:12px;padding:12px;font-family:var(--sans);
+ font-size:13px;font-weight:600;color:var(--teal);cursor:pointer;transition:all .12s}
+.folder:hover{border-color:var(--teal);background:#F3FBFA;box-shadow:0 3px 10px rgba(13,148,136,.15)}
+#log{margin-top:16px;font-family:var(--mono);font-size:11.5px;color:var(--muted);max-height:170px;overflow:auto;line-height:1.7}
+#log .ok{color:var(--add)}#log .err{color:var(--del)}#log .warn{color:#D97706}
+.note{margin-top:14px;font-size:11.5px;color:var(--faint);line-height:1.6}
+#app{display:none}
+</style>
+</head>
+<body>
+
+<div id="loader">
+  <div class="card">
+    <div class="bl">
+      <div class="logo">▤</div>
+      <div><div class="brandtxt">SUEZ — Gestion d'Actif</div><div class="brandsub">Comparateur RAD · Rapports du Délégataire</div></div>
+      <span class="author">Tanguy BAYLE</span>
+    </div>
+    <div class="title">Comparateur RAD (Word)</div>
+    <div class="desc">Chargez un dossier de rapports Word (.docx). L'outil apparie automatiquement chaque « National » avec sa version locale « RAD/RAP 2025 » par commune, puis compare la colonne 2025 du §1.4 jusqu'au chapitre 5. Tout se passe dans votre navigateur.</div>
+    <label class="drop" for="fileInput">
+      <div style="font-size:26px;margin-bottom:6px">📄</div>
+      <div class="t">Glissez vos fichiers Word ici, ou cliquez pour choisir</div>
+      <div class="s">.docx — fichiers « National… » et « RAD/RAP 2025… »</div>
+      <input id="fileInput" type="file" accept=".docx" multiple style="display:none">
+    </label>
+    <div class="orline"><span>ou</span></div>
+    <button class="folder" id="folderBtn">📁 Charger un dossier entier de RAD</button>
+    <input id="folderInput" type="file" webkitdirectory directory multiple style="display:none">
+    <div id="log"></div>
+    <div class="note">ℹ️ Les liens directs vers les fichiers Word ne sont pas disponibles dans la version navigateur (sécurité). La section Word (« Chap. 2 › … ») reste indiquée pour retrouver l'endroit.</div>
+  </div>
+</div>
+
+<div id="app">
+  <div class="top"><div class="inner">
+    <div class="logo">▤</div>
+    <div><div class="btit">Comparateur RAD (Word)</div><div class="bsub" id="subInfo">—</div></div>
+    <div class="sp"></div>
+    <button class="btn" id="resetBtn">↺ Nouveau dossier</button>
+    <button class="btn teal" id="xlsBtn">⬇ Export Excel</button>
+  </div></div>
+  <div class="wrap">
+    <div class="stats" id="stats"></div>
+    <h2 class="sec">Synthèse par commune</h2>
+    <div class="card"><table class="syn" id="synTable"></table></div>
+    <h2 class="sec">Détail des différences</h2>
+    <div class="detail" id="detail"></div>
+  </div>
+</div>
+
+<script>
+/* ====== CŒUR (identique au programme Python, validé) ====== */
+// ===== Cœur du comparateur RAD Word, portable navigateur (DOM standard) =====
+// Namespace WordprocessingML
+const W='http://schemas.openxmlformats.org/wordprocessingml/2006/main';
+function elsNS(root,local){return root.getElementsByTagNameNS(W,local);}
+function attrW(el,name){return el.getAttributeNS(W,name);}
+
+function _norm(s){ if(!s) return ''; s=s.normalize('NFKC').replace(/\n/g,' '); return s.replace(/\s+/g,' ').trim(); }
+function _cle(s){
+  s=_norm(s).toLowerCase();
+  s=s.replace(/[*\u00b9\u00b2\u00b3\u2070-\u2079]+/g,'');
+  s=s.normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+  s=s.replace(/\s*-\s*/g,'-');
+  s=s.replace(/[.:;]+$/,'').trim();
+  return s.replace(/\s+/g,' ');
+}
+function parseNombreFr(brut){
+  if(brut==null) return {val:null,pct:false};
+  let s=_norm(String(brut));
+  if(!s) return {val:null,pct:false};
+  const pct=s.indexOf('%')>=0; s=s.replace(/%/g,'');
+  s=s.replace(/[*\u00b9\u00b2\u00b3\u2070-\u2079]/g,'');
+  let neg=false;
+  if(s.startsWith('(')&&s.endsWith(')')){neg=true;s=s.slice(1,-1);}
+  s=s.replace(/\u00a0/g,'').replace(/\u202f/g,'').replace(/ /g,'');
+  const low=s.toLowerCase();
+  if(s===''||s==='-'||s==='\u2013'||s==='\u2014'||['nc','n.c','n.c.','na','n/a','ns'].includes(low)) return {val:null,pct:false};
+  if(s[0]==='-'||s[0]==='\u2013'||s[0]==='\u2014'){neg=true;s=s.slice(1);}
+  if(s.indexOf(',')>=0) s=s.replace(/\./g,'').replace(',','.');
+  if(!/^\d+(\.\d+)?$/.test(s)) return {val:null,pct:false};
+  let val=parseFloat(s); if(isNaN(val)) return {val:null,pct:false};
+  return {val:neg?-val:val,pct};
+}
+function fmtNum(d){
+  if(d==null) return '';
+  let s=(Math.round(d*1e6)/1e6).toString();
+  return s;
+}
+
+// -- styles : styleId -> nom (w:name val) --
+function mapStyles(stylesDoc){
+  const m={};
+  if(!stylesDoc) return m;
+  const styles=elsNS(stylesDoc,'style');
+  for(let i=0;i<styles.length;i++){
+    const id=attrW(styles[i],'styleId');
+    const names=styles[i].getElementsByTagNameNS(W,'name');
+    if(id&&names.length) m[id]=attrW(names[0],'val')||'';
+  }
+  return m;
+}
+function headingLevel(styleName,styleId,outline){
+  const s=(styleName||'').toLowerCase(), id=(styleId||'').toLowerCase();
+  let m=s.match(/^heading\s*([1-9])$/)||s.match(/^titre\s*([1-9])$/)||id.match(/^heading([1-9])$/)||id.match(/^titre([1-9])$/);
+  if(m) return parseInt(m[1],10);
+  if(outline!=null&&outline!==''){const n=parseInt(outline,10);if(!isNaN(n)&&n>=0&&n<=8)return n+1;}
+  return 0;
+}
+
+// -- texte d'un paragraphe (concat des w:t, tab->\t) --
+function paraText(p){
+  let out='';
+  const kids=p.getElementsByTagNameNS(W,'*');
+  for(let i=0;i<kids.length;i++){
+    const ln=kids[i].localName;
+    if(ln==='t') out+=kids[i].textContent;
+    else if(ln==='tab') out+='\t';
+    else if(ln==='br'||ln==='cr') out+='\n';
+  }
+  return out;
+}
+function paraStyleId(p){
+  const pPr=firstChildLocal(p,'pPr'); if(!pPr) return null;
+  const ps=firstChildLocal(pPr,'pStyle'); return ps?attrW(ps,'val'):null;
+}
+function paraOutline(p){
+  const pPr=firstChildLocal(p,'pPr'); if(!pPr) return null;
+  const o=firstChildLocal(pPr,'outlineLvl'); return o?attrW(o,'val'):null;
+}
+function paraAncre(p){
+  const bms=p.getElementsByTagNameNS(W,'bookmarkStart');
+  for(let i=0;i<bms.length;i++){const nm=attrW(bms[i],'name'); if(nm&&nm.startsWith('_Toc')) return nm;}
+  return null;
+}
+function firstChildLocal(el,local){
+  for(let i=0;i<el.childNodes.length;i++){const c=el.childNodes[i]; if(c.nodeType===1&&c.localName===local&&c.namespaceURI===W) return c;}
+  return null;
+}
+
+// -- cellule -> texte (paragraphes joints par \n) --
+function cellText(tc){
+  const parts=[];
+  for(let i=0;i<tc.childNodes.length;i++){const c=tc.childNodes[i];
+    if(c.nodeType===1&&c.localName==='p'&&c.namespaceURI===W) parts.push(paraText(c));
+  }
+  return parts.join('\n');
+}
+function tableRows(tbl){
+  const rows=[];
+  for(let i=0;i<tbl.childNodes.length;i++){const c=tbl.childNodes[i];
+    if(c.nodeType===1&&c.localName==='tr'&&c.namespaceURI===W){
+      const cells=[];
+      for(let j=0;j<c.childNodes.length;j++){const d=c.childNodes[j];
+        if(d.nodeType===1&&d.localName==='tc'&&d.namespaceURI===W) cells.push(d);
+      }
+      rows.push(cells);
+    }
+  }
+  return rows;
+}
+function colCible(rows){
+  let exact=null,partiel=null;
+  for(let r=0;r<Math.min(4,rows.length);r++){
+    for(let j=0;j<rows[r].length;j++){
+      const txt=_norm(cellText(rows[r][j]));
+      if(txt==='2025'&&!exact) exact=[r,j];
+      else if(r<=2&&txt.indexOf('2025')>=0&&!partiel) partiel=[r,j];
+    }
+  }
+  return exact||partiel;
+}
+
+// -- parcours body : p et tbl dans l'ordre, en descendant dans w:sdt/w:sdtContent --
+function iterBlocks(body){
+  const out=[];
+  function walk(parent){
+    for(let i=0;i<parent.childNodes.length;i++){
+      const ch=parent.childNodes[i]; if(ch.nodeType!==1||ch.namespaceURI!==W) continue;
+      if(ch.localName==='p') out.push({type:'p',el:ch});
+      else if(ch.localName==='tbl') out.push({type:'tbl',el:ch});
+      else if(ch.localName==='sdt'||ch.localName==='sdtContent') walk(ch);
+    }
+  }
+  walk(body);
+  return out;
+}
+
+// -- extraction principale (port de extraire) --
+function extraireDoc(documentXmlDoc, stylesDoc){
+  const styleMap=mapStyles(stylesDoc);
+  const body=elsNS(documentXmlDoc,'body')[0];
+  const records=[];
+  let h1=0, chapNom='', sous='', ancre=null, inZone=false;
+  const blocks=iterBlocks(body);
+  for(const blk of blocks){
+    if(blk.type==='p'){
+      const p=blk.el;
+      const sid=paraStyleId(p);
+      const sname=sid?(styleMap[sid]||sid):'';
+      const lvl=headingLevel(sname,sid,paraOutline(p));
+      const t=paraText(p).trim();
+      if(!t) continue;
+      if(lvl===1){
+        h1++; chapNom=t.replace(/^[|\t \u00a0]+/,'').trim(); sous='';
+        const a=paraAncre(p); if(a) ancre=a;
+        if(h1>=5) break;
+      } else if(lvl>=2){
+        sous=t; const a=paraAncre(p); if(a) ancre=a;
+        if(lvl===2 && _cle(t).indexOf('chiffres cle')>=0) inZone=true;
+      }
+      if(h1>=2) inZone=true;
+      continue;
+    }
+    if(!inZone) continue;
+    const rows=tableRows(blk.el);
+    if(rows.length<2) continue;
+    const cible=colCible(rows);
+    if(!cible) continue;
+    const idxH=cible[0], col=cible[1];
+    const titre=_norm(cellText(rows[0][0]));
+    if(!titre) continue;
+    const ctx=_norm(cellText(rows[idxH][0]));
+    const ctxMaj=(ctx && ctx===ctx.toUpperCase() && ctx!==ctx.toLowerCase() && !/^\d{4}$/.test(ctx));
+    const titreCle=_cle(titre)+(ctxMaj?(' | '+_cle(ctx)):'');
+    for(let ri=idxH+1;ri<rows.length;ri++){
+      const cells=rows[ri].map(c=>_norm(cellText(c)));
+      if(col>=cells.length) continue;
+      const parts=[],vus=new Set();
+      for(let k=0;k<col;k++){const c=cells[k];
+        if(!c||vus.has(c)) continue; vus.add(c);
+        const pn=parseNombreFr(c); if(pn.val===null) parts.push(c);
+      }
+      const libelle=parts.join(' | ');
+      const brut=cells[col];
+      if(!libelle||!brut) continue;
+      const val=parseNombreFr(brut).val;
+      const section='Chap. '+h1+' — '+chapNom+(sous?(' \u203a '+sous):'');
+      records.push({titre,libelle,cleT:titreCle,cleL:_cle(libelle),brut,valeur:val,section,ancre});
+    }
+  }
+  return records;
+}
+
+
+// ===== SequenceMatcher.ratio() (algorithme difflib / Ratcliff-Obershelp) =====
+function _matchingBlocks(a,b){
+  const la=a.length, lb=b.length;
+  // b2j : positions de chaque caractère dans b
+  const b2j={};
+  for(let i=0;i<lb;i++){ (b2j[b[i]]=b2j[b[i]]||[]).push(i); }
+  const blocks=[];
+  const queue=[[0,la,0,lb]];
+  while(queue.length){
+    const [alo,ahi,blo,bhi]=queue.pop();
+    // trouver le plus long bloc correspondant dans a[alo:ahi], b[blo:bhi]
+    let besti=alo,bestj=blo,bestsize=0;
+    let j2len={};
+    for(let i=alo;i<ahi;i++){
+      const newj2len={};
+      const js=b2j[a[i]]||[];
+      for(const j of js){
+        if(j<blo) continue; if(j>=bhi) break;
+        const k=(j2len[j-1]||0)+1; newj2len[j]=k;
+        if(k>bestsize){besti=i-k+1;bestj=j-k+1;bestsize=k;}
+      }
+      j2len=newj2len;
+    }
+    if(bestsize>0){
+      blocks.push([besti,bestj,bestsize]);
+      if(alo<besti&&blo<bestj) queue.push([alo,besti,blo,bestj]);
+      if(besti+bestsize<ahi&&bestj+bestsize<bhi) queue.push([besti+bestsize,ahi,bestj+bestsize,bhi]);
+    }
+  }
+  return blocks;
+}
+function ratio(a,b){
+  if(!a.length&&!b.length) return 1;
+  const blocks=_matchingBlocks(a,b);
+  let M=0; for(const bl of blocks) M+=bl[2];
+  return (2*M)/(a.length+b.length);
+}
+
+// ===== Comparaison (port de comparer) =====
+const NAT_ECART='Écart de valeur',
+      NAT_VIDE_RAD='Valeur absente côté RAD 2025',
+      NAT_VIDE_NAT='Valeur absente côté National',
+      NAT_SEUL_NAT='Ligne uniquement dans le National',
+      NAT_SEUL_RAD='Ligne uniquement dans le RAD 2025';
+
+function comparer(ref,v1){
+  const cle=r=>r.cleT+'\u0000'+r.cleL;
+  const index=recs=>{const d=new Map();for(const r of recs){const k=cle(r);if(!d.has(k))d.set(k,[]);d.get(k).push(r);}return d;};
+  const ir=index(ref), iv=index(v1);
+  const app=[],rr=[],rv=[];
+  // passe 1 : clé exacte
+  const seen=new Set(),order=[];
+  for(const r of ref.concat(v1)){const k=cle(r);if(!seen.has(k)){seen.add(k);order.push(k);}}
+  for(const c of order){
+    const lr=ir.get(c)||[], lv=iv.get(c)||[];
+    for(let k=0;k<Math.max(lr.length,lv.length);k++){
+      const r=k<lr.length?lr[k]:null, v=k<lv.length?lv[k]:null;
+      if(r&&v) app.push([r,v]); else if(r) rr.push(r); else rv.push(v);
+    }
+  }
+  // passe 2 : libellé seul
+  const parLib=recs=>{const d=new Map();for(const x of recs){if(!d.has(x.cleL))d.set(x.cleL,[]);d.get(x.cleL).push(x);}return d;};
+  let lr=parLib(rr), lv=parLib(rv); const cr=new Set(),cv=new Set();
+  for(const [lib,a] of lr){const b=lv.get(lib);
+    if(b&&a.length===1&&b.length===1){app.push([a[0],b[0]]);cr.add(a[0]);cv.add(b[0]);}}
+  let rr2=rr.filter(x=>!cr.has(x)), rv2=rv.filter(x=>!cv.has(x));
+  // passe 3 : flou par titre, validation bidirectionnelle
+  const SEUIL=0.88;
+  if(rr2.length&&rv2.length){
+    const gr=new Map(),gv=new Map();
+    for(const r of rr2){if(!gr.has(r.cleT))gr.set(r.cleT,[]);gr.get(r.cleT).push(r);}
+    for(const v of rv2){if(!gv.has(v.cleT))gv.set(v.cleT,[]);gv.get(v.cleT).push(v);}
+    const flous=new Set();
+    for(const [tk,a] of gr){const b=gv.get(tk); if(!b) continue;
+      const bestA=new Map(),bestB=new Map();
+      for(const r of a){let bv=null,sc=0;for(const v of b){const s=ratio(r.cleL,v.cleL);if(s>sc){bv=v;sc=s;}}if(bv&&sc>=SEUIL)bestA.set(r,bv);}
+      for(const v of b){let br=null,sc=0;for(const r of a){const s=ratio(v.cleL,r.cleL);if(s>sc){br=r;sc=s;}}if(br&&sc>=SEUIL)bestB.set(v,br);}
+      for(const r of a){const v=bestA.get(r); if(v&&bestB.get(v)===r){app.push([r,v]);flous.add(r);flous.add(v);}}
+    }
+    rr2=rr2.filter(x=>!flous.has(x)); rv2=rv2.filter(x=>!flous.has(x));
+  }
+  // différences
+  const diffs=[];
+  const L=(r,v,nature,ecart='')=>{const base=r||v;return{section:base.section||'',titre:base.titre,libelle:base.libelle,
+    ref:r?r.brut:'(ligne absente)',v1:v?v.brut:'(ligne absente)',ancre_ref:r?r.ancre:null,ancre_v1:v?v.ancre:null,nature,ecart};};
+  for(const [r,v] of app){const vr=r.valeur,vv=v.valeur;
+    if(vr!=null&&vv!=null){ if(Math.abs(vr-vv)>1e-9) diffs.push(L(r,v,NAT_ECART,fmtNum(vv-vr))); }
+    else if(vr!=null) diffs.push(L(r,v,NAT_VIDE_RAD));
+    else if(vv!=null) diffs.push(L(r,v,NAT_VIDE_NAT));
+  }
+  for(const r of rr2){ if(r.valeur!=null) diffs.push(L(r,null,NAT_SEUL_NAT)); }
+  for(const v of rv2){ if(v.valeur!=null) diffs.push(L(null,v,NAT_SEUL_RAD)); }
+  const ordre={[NAT_ECART]:0,[NAT_VIDE_RAD]:1,[NAT_VIDE_NAT]:2,[NAT_SEUL_NAT]:3,[NAT_SEUL_RAD]:4};
+  diffs.sort((a,b)=>(ordre[a.nature]??9)-(ordre[b.nature]??9)||a.titre.localeCompare(b.titre,'fr')||a.libelle.localeCompare(b.libelle,'fr'));
+  return diffs;
+}
+
+// ===== Appariement des fichiers par commune (port de apparier_dossier) =====
+const SEUIL_APPARIEMENT=0.55;
+function typeFichier(nom){const n=nom.toLowerCase();
+  if(n.startsWith('national')) return 'national';
+  if(/^ra[dp][ _]*2025/.test(n)) return 'rad';
+  return null;}
+function domaineFichier(nom){let n=nom.toLowerCase().replace(/[_\-]/g,' ');
+  if(/\b(?:dsp|ps)\s+asst\b/.test(n)||n.indexOf('assainissement')>=0) return 'ASST';
+  if(/\b(?:dsp|ps)\s+eau\b/.test(n)||n.indexOf('nationaleau')>=0) return 'EAU';
+  if(/\basst\b/.test(n)) return 'ASST';
+  if(/\beau\b/.test(n)) return 'EAU';
+  return 'ASST';}
+function stripExt(n){return n.replace(/\.[^.]+$/,'');}
+function communeBrute(nom){
+  let s=stripExt(nom.split(/[\\/]/).pop());
+  s=s.replace(/_/g,' ').replace(/-/g,' ').replace(/\s+/g,' ').trim();
+  s=s.replace(/^national(?:assainissement|eau)\s+rad\s+(?:dsp|ps)\s+/i,'');
+  s=s.replace(/^ra[dp]\s+2025\s+/i,'');
+  s=s.split(/\b(?:(?:DSP|PS)\s+(?:ASST|EAU)|ASST)\b/i)[0];
+  s=s.replace(/\s+(DSP|PS)\s*$/i,'');
+  return s.replace(/\s+/g,' ').trim();
+}
+function cleCommune(nom){
+  let s=communeBrute(nom).normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+  s=s.replace(/[^A-Za-z0-9 ]/g,' ').toUpperCase().replace(/\s+/g,' ').trim();
+  s=s.replace(/\bSTE\b/g,'SAINTE').replace(/\bST\b/g,'SAINT');
+  return s;
+}
+function nomAffichageCommune(nom){
+  return communeBrute(nom).toLowerCase().replace(/\b\w/g,c=>c.toUpperCase());
+}
+function rangDoublon(f){return [/\(\d+\)/.test(f)?1:0, f.length];}
+function similarite(a,b){
+  const r1=ratio(a,b);
+  const sa=a.split(' ').sort().join(' '), sb=b.split(' ').sort().join(' ');
+  return Math.max(r1,ratio(sa,sb));
+}
+function confiance(sc){ if(sc>=0.90) return 'Sûr'; if(sc>=0.72) return 'Probable'; return 'À vérifier'; }
+
+// items: [{fichier, ...}]  -> renvoie les paires
+function apparierFichiers(items){
+  const nats=[],rads=[];
+  for(const it of items){
+    const f=it.fichier;
+    if(!f.toLowerCase().endsWith('.docx')||f.startsWith('~$')) continue;
+    const t=typeFichier(f); if(!t) continue;
+    const rec={ref:it, fichier:f, cle:cleCommune(f), nom:nomAffichageCommune(f), domaine:domaineFichier(f)};
+    (t==='national'?nats:rads).push(rec);
+  }
+  const dedup=arr=>{const best=new Map();
+    for(const it of arr){const k=it.domaine+'\u0000'+it.cle; const cur=best.get(k);
+      if(!cur){best.set(k,it);continue;}
+      const a=rangDoublon(it.fichier), b=rangDoublon(cur.fichier);
+      if(a[0]<b[0]||(a[0]===b[0]&&a[1]<b[1])) best.set(k,it);
+    } return [...best.values()];};
+  const N=dedup(nats), R=dedup(rads);
+  const scores=[];
+  for(let ni=0;ni<N.length;ni++)for(let ri=0;ri<R.length;ri++)
+    if(N[ni].domaine===R[ri].domaine) scores.push([similarite(N[ni].cle,R[ri].cle),ni,ri]);
+  scores.sort((a,b)=>b[0]-a[0]);
+  const prisN=new Set(),prisR=new Set(),paires=[];
+  for(const [sc,ni,ri] of scores){
+    if(sc<SEUIL_APPARIEMENT) break;
+    if(prisN.has(ni)||prisR.has(ri)) continue;
+    prisN.add(ni);prisR.add(ri);
+    paires.push({commune:N[ni].nom,domaine:N[ni].domaine,national:N[ni],rad:R[ri],score:sc,confiance:confiance(sc)});
+  }
+  for(let ni=0;ni<N.length;ni++) if(!prisN.has(ni)) paires.push({commune:N[ni].nom,domaine:N[ni].domaine,national:N[ni],rad:null,score:null,confiance:'Sans correspondance'});
+  for(let ri=0;ri<R.length;ri++) if(!prisR.has(ri)) paires.push({commune:R[ri].nom,domaine:R[ri].domaine,national:null,rad:R[ri],score:null,confiance:'Sans correspondance'});
+  paires.sort((a,b)=>a.domaine.localeCompare(b.domaine)||a.commune.localeCompare(b.commune,'fr'));
+  return paires;
+}
+
+</script>
+<script>
+/* ====== APPLICATION (navigateur) ====== */
+(function(){
+  var loader=document.getElementById('loader'), logEl=document.getElementById('log');
+  function log(m,c){var d=document.createElement('div');if(c)d.className=c;d.textContent=m;logEl.appendChild(d);logEl.scrollTop=logEl.scrollHeight;}
+  document.getElementById('fileInput').addEventListener('change',function(){if(this.files.length)traiter(this.files);});
+  document.getElementById('folderBtn').addEventListener('click',function(){document.getElementById('folderInput').click();});
+  document.getElementById('folderInput').addEventListener('change',function(){if(this.files.length)traiter(this.files);});
+  ['dragenter','dragover'].forEach(function(ev){loader.addEventListener(ev,function(e){e.preventDefault();loader.classList.add('drag');});});
+  ['dragleave','drop'].forEach(function(ev){loader.addEventListener(ev,function(e){e.preventDefault();loader.classList.remove('drag');});});
+  loader.addEventListener('drop',function(e){if(e.dataTransfer.files.length)traiter(e.dataTransfer.files);});
+  document.getElementById('resetBtn').addEventListener('click',function(){location.reload();});
+
+  var RESULTATS=[];
+  var parser=new DOMParser();
+  async function lireDocx(file){
+    var zip=await JSZip.loadAsync(file);
+    var dx=zip.file('word/document.xml'); if(!dx) throw new Error('document.xml introuvable');
+    var doc=parser.parseFromString(await dx.async('string'),'application/xml');
+    var sf=zip.file('word/styles.xml');
+    var styles=sf?parser.parseFromString(await sf.async('string'),'application/xml'):null;
+    return extraireDoc(doc,styles);
+  }
+  function modifLabel(dom){return dom==='EAU'?'RAP 2025':'RAD 2025';}
+
+  async function traiter(fileList){
+    var files=[].slice.call(fileList).filter(function(f){return /\.docx$/i.test(f.name)&&!/^~\$/.test(f.name);});
+    if(!files.length){log('Aucun fichier .docx valide.','err');return;}
+    logEl.innerHTML=''; log('Analyse de '+files.length+' fichier(s)…');
+    var items=files.map(function(f){return {fichier:f.name,file:f};});
+    var paires=apparierFichiers(items);
+    log(paires.length+' paire(s)/fichier(s) après appariement.','');
+    RESULTATS=[];
+    var i=0;
+    function suivant(){
+      if(i>=paires.length){ terminer(); return; }
+      var p=paires[i], modif=modifLabel(p.domaine);
+      if(p.national&&p.rad){
+        log('['+(i+1)+'/'+paires.length+'] '+p.commune+' — comparaison…');
+        Promise.all([lireDocx(p.national.ref.file),lireDocx(p.rad.ref.file)]).then(function(res){
+          var diffs=comparer(res[0],res[1]);
+          var rep={}; diffs.forEach(function(d){rep[d.nature]=(rep[d.nature]||0)+1;});
+          RESULTATS.push({commune:p.commune,domaine:p.domaine,statut:'Comparé',confiance:p.confiance,
+            fichier_national:p.national.fichier,fichier_rad:p.rad.fichier,diffs:diffs,repartition:rep,modif:modif});
+          log('   ✓ '+diffs.length+' différence(s)','ok');
+          i++; setTimeout(suivant,10);
+        }).catch(function(err){
+          log('   ✗ '+p.commune+' : '+err.message,'err');
+          RESULTATS.push({commune:p.commune,domaine:p.domaine,statut:'Erreur',confiance:p.confiance,
+            fichier_national:p.national?p.national.fichier:null,fichier_rad:p.rad?p.rad.fichier:null,diffs:[],repartition:{},modif:modif});
+          i++; setTimeout(suivant,10);
+        });
+      } else {
+        RESULTATS.push({commune:p.commune,domaine:p.domaine,statut:'Non comparé',confiance:p.confiance,
+          fichier_national:p.national?p.national.fichier:null,fichier_rad:p.rad?p.rad.fichier:null,diffs:[],repartition:{},modif:modif});
+        i++; setTimeout(suivant,10);
+      }
+    }
+    suivant();
+  }
+
+  var NAT_ECART='Écart de valeur',NAT_VIDE_RAD='Valeur absente côté RAD 2025',NAT_VIDE_NAT='Valeur absente côté National',
+      NAT_SEUL_NAT='Ligne uniquement dans le National',NAT_SEUL_RAD='Ligne uniquement dans le RAD 2025';
+  function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+
+  function terminer(){
+    if(!RESULTATS.length){log('Aucun résultat.','err');return;}
+    RESULTATS.sort(function(a,b){return a.domaine.localeCompare(b.domaine)||a.commune.localeCompare(b.commune,'fr');});
+    rendre();
+    document.getElementById('loader').style.display='none';
+    document.getElementById('app').style.display='block';
+  }
+
+  function classConf(c){return c==='Sûr'?'c-sur':c==='Probable'?'c-prob':c==='À vérifier'?'c-verif':'c-sans';}
+  function classNat(n){return n===NAT_ECART?'p-ecart':n.indexOf('Valeur absente')===0?'p-vide':n===NAT_SEUL_NAT?'p-nat':'p-rad';}
+
+  function rendre(){
+    var comp=RESULTATS.filter(function(r){return r.statut==='Comparé';});
+    var totalDiff=0,totalEcart=0,orph=0;
+    comp.forEach(function(r){totalDiff+=r.diffs.length;totalEcart+=(r.repartition[NAT_ECART]||0);});
+    RESULTATS.forEach(function(r){if(r.statut!=='Comparé')orph++;});
+    document.getElementById('subInfo').textContent=comp.length+' commune(s) comparée(s) · '+totalDiff+' différence(s)';
+    document.getElementById('stats').innerHTML=
+      stat(RESULTATS.length,'Fichiers / paires','')+
+      stat(comp.length,'Communes comparées','k-comp')+
+      stat(totalEcart,'Écarts de valeur','k-ecart')+
+      stat(totalDiff,'Différences totales','')+
+      stat(orph,'Sans correspondance','k-orph');
+    // synthèse
+    var head='<thead><tr><th>Commune</th><th>Domaine</th><th>Appariement</th><th>National</th><th>Version locale</th>'+
+      '<th class="num">Écarts</th><th class="num">En moins</th><th class="num">En plus</th><th class="num">Total</th></tr></thead>';
+    var body='<tbody>'+RESULTATS.map(function(r,idx){
+      var rep=r.repartition, comp=r.statut==='Comparé';
+      var enMoins=(rep[NAT_VIDE_RAD]||0)+(rep[NAT_SEUL_NAT]||0);
+      var enPlus=(rep[NAT_VIDE_NAT]||0)+(rep[NAT_SEUL_RAD]||0);
+      var total=r.diffs.length;
+      return '<tr class="'+(comp?'clic':'')+'" data-idx="'+idx+'">'+
+        '<td><b>'+esc(r.commune||'—')+'</b></td>'+
+        '<td><span class="badge '+(r.domaine==='EAU'?'b-eau':'b-asst')+'">'+r.domaine+'</span></td>'+
+        '<td><span class="badge '+classConf(r.confiance)+'">'+esc(r.confiance)+'</span></td>'+
+        '<td>'+(r.fichier_national?esc(r.fichier_national):'<span class="na">—</span>')+'</td>'+
+        '<td>'+(r.fichier_rad?esc(r.fichier_rad):'<span class="na">—</span>')+'</td>'+
+        '<td class="num">'+(comp?(rep[NAT_ECART]||0):'')+'</td>'+
+        '<td class="num">'+(comp?enMoins:'')+'</td>'+
+        '<td class="num">'+(comp?enPlus:'')+'</td>'+
+        '<td class="num"><b>'+(comp?total:'')+'</b></td></tr>';
+    }).join('')+'</tbody>';
+    document.getElementById('synTable').innerHTML=head+body;
+    // détail
+    var det=document.getElementById('detail');
+    det.innerHTML=comp.map(function(r,idx){
+      var gi=RESULTATS.indexOf(r);
+      var rows=r.diffs.map(function(d){
+        var cls=d.nature===NAT_ECART?'n-ecart':(d.nature.indexOf('Valeur absente')===0?'n-manq':'');
+        var nat=d.nature.replace('RAD 2025',r.modif);
+        return '<tr class="'+cls+'"><td>'+esc(d.section)+'</td><td>'+esc(d.titre)+'</td><td>'+esc(d.libelle)+'</td>'+
+          '<td>'+(d.ref==='(ligne absente)'?'<span class="na">absente</span>':esc(d.ref))+'</td>'+
+          '<td>'+(d.v1==='(ligne absente)'?'<span class="na">absente</span>':esc(d.v1))+'</td>'+
+          '<td><span class="pill '+classNat(d.nature)+'">'+esc(nat)+'</span></td>'+
+          '<td class="num">'+esc(d.ecart)+'</td></tr>';
+      }).join('');
+      var modif=r.modif;
+      var thead='<thead><tr><th>Section (Word)</th><th>Tableau</th><th>Ligne</th><th>National (réf.)</th><th>'+modif+'</th><th>Nature</th><th class="num">Écart</th></tr></thead>';
+      var inner=r.diffs.length? '<table class="diff">'+thead+'<tbody>'+rows+'</tbody></table>' : '<div class="empty-c">Aucune différence détectée pour cette commune.</div>';
+      return '<div class="commune-blk" id="c'+gi+'">'+
+        '<div class="commune-hd" data-tgl="'+gi+'"><span class="chev">▶</span><span class="nm">'+esc(r.commune)+'</span>'+
+        '<span class="badge '+(r.domaine==='EAU'?'b-eau':'b-asst')+'">'+r.domaine+'</span>'+
+        '<span class="meta">'+r.diffs.length+' diff. · '+esc(r.confiance)+'</span></div>'+
+        '<div class="commune-body">'+inner+'</div></div>';
+    }).join('');
+    // interactions
+    document.querySelectorAll('#synTable tr.clic').forEach(function(tr){
+      tr.addEventListener('click',function(){var idx=this.getAttribute('data-idx');
+        var blk=document.getElementById('c'+idx); if(blk){blk.classList.add('open');blk.scrollIntoView({behavior:'smooth',block:'start'});}});
+    });
+    document.querySelectorAll('.commune-hd').forEach(function(hd){
+      hd.addEventListener('click',function(){this.parentNode.classList.toggle('open');});
+    });
+    document.getElementById('xlsBtn').addEventListener('click',exportExcel);
+  }
+  function stat(v,l,cls){return '<div class="stat '+(cls||'')+'"><div class="v">'+v+'</div><div class="l">'+l+'</div></div>';}
+
+  /* ====== Export Excel (ExcelJS) ====== */
+  async function exportExcel(){
+    var wb=new ExcelJS.Workbook();
+    var NAVY='FF182F52';
+    function styleHeader(ws,n){var row=ws.getRow(1);row.height=20;
+      for(var c=1;c<=n;c++){var cell=row.getCell(c);cell.fill={type:'pattern',pattern:'solid',fgColor:{argb:NAVY}};
+        cell.font={name:'Calibri',bold:true,color:{argb:'FFFFFFFF'},size:11};
+        cell.alignment={vertical:'middle',wrapText:true};}}
+    var ws=wb.addWorksheet('Synthèse');
+    ws.columns=[{header:'Commune',width:26},{header:'Domaine',width:12},{header:'Fichier National',width:38},
+      {header:'Fichier version locale',width:34},{header:'Appariement',width:16},{header:'Écarts de valeur',width:14},
+      {header:'Lignes/valeurs en moins (local)',width:20},{header:'Lignes/valeurs en plus (local)',width:20},{header:'Total différences',width:14}];
+    var fillsAppar={'Sûr':'FFE2EFDA','Probable':'FFFFF2CC','À vérifier':'FFF8CBAD','Sans correspondance':'FFD9D9D9'};
+    RESULTATS.forEach(function(r){
+      var rep=r.repartition,comp=r.statut==='Comparé';
+      var enMoins=(rep[NAT_VIDE_RAD]||0)+(rep[NAT_SEUL_NAT]||0), enPlus=(rep[NAT_VIDE_NAT]||0)+(rep[NAT_SEUL_RAD]||0);
+      var row=ws.addRow([r.commune,r.domaine,r.fichier_national||'—',r.fichier_rad||'—',r.confiance,
+        comp?(rep[NAT_ECART]||0):'',comp?enMoins:'',comp?enPlus:'',comp?r.diffs.length:'']);
+      if(fillsAppar[r.confiance]) row.getCell(5).fill={type:'pattern',pattern:'solid',fgColor:{argb:fillsAppar[r.confiance]}};
+      row.eachCell(function(c){c.font=c.font||{name:'Calibri',size:10};c.alignment={vertical:'middle',wrapText:true};});
+    });
+    styleHeader(ws,9); ws.autoFilter='A1:I'+ws.rowCount; ws.views=[{state:'frozen',ySplit:1}];
+    RESULTATS.filter(function(r){return r.statut==='Comparé';}).forEach(function(r){
+      var modif=r.modif, nom=(r.commune||'Commune').replace(/[:\\/?*\[\]]/g,' ').substring(0,31)||'Commune';
+      var base=nom,k=1; while(wb.getWorksheet(nom)){nom=base.substring(0,28)+' ('+k+')';k++;}
+      var wsd=wb.addWorksheet(nom);
+      wsd.columns=[{header:'Section (Word)',width:34},{header:'Tableau',width:34},{header:'Ligne',width:40},
+        {header:'Donnée National (réf.)',width:17},{header:'Donnée '+modif,width:17},{header:'Nature de la différence',width:26},{header:'Écart ('+modif+' − National)',width:16}];
+      r.diffs.forEach(function(d){
+        var ec=d.ecart; var ecn=(ec===''||ec==null)?'':(isNaN(parseFloat(ec))?ec:parseFloat(ec));
+        var nat=d.nature.replace('RAD 2025',modif);
+        var row=wsd.addRow([d.section,d.titre,d.libelle,d.ref,d.v1,nat,ecn]);
+        var fill=d.nature===NAT_ECART?'FFFCE4D6':(d.nature.indexOf('Valeur absente')===0?'FFFFF2CC':null);
+        row.eachCell(function(c){c.font={name:'Calibri',size:10};c.alignment={vertical:'top',wrapText:true};
+          if(fill)c.fill={type:'pattern',pattern:'solid',fgColor:{argb:fill}};});
+      });
+      if(r.diffs.length===0) wsd.addRow(['Aucune différence détectée','','','','','','']);
+      styleHeader(wsd,7); wsd.autoFilter='A1:G'+wsd.rowCount; wsd.views=[{state:'frozen',ySplit:1}];
+    });
+    var buf=await wb.xlsx.writeBuffer();
+    var blob=new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+    var a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+    var d=new Date(), ds=d.getFullYear()+('0'+(d.getMonth()+1)).slice(-2)+('0'+d.getDate()).slice(-2);
+    a.download='Comparaison_RAD_'+ds+'.xlsx'; a.click(); URL.revokeObjectURL(a.href);
+  }
+})();
+</script>
+</body>
+</html>
