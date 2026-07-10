@@ -113,8 +113,9 @@ footer .dot{width:4px;height:4px;border-radius:50%;background:var(--line-2)}
   <div class="empty" id="empty">Aucun outil ne correspond à votre recherche.</div>
 
   <div class="note">
-    💡 <b>Outil accessible en ligne :</b> pour le partager, il suffit d'envoyer l'adresse de cette page.
-    La version affichée est toujours la plus récente — aucune installation ni téléchargement nécessaire.
+    💡 <b>Pour partager ces outils :</b> gardez ce fichier <b>accueil.html</b> dans le même dossier que
+    <b>R210_Diff.html</b> et <b>Dashboard_R210.html</b> (Teams / SharePoint / réseau), puis partagez le lien vers accueil.html.
+    Les cartes ouvrent les outils depuis ce même dossier.
   </div>
 
   <footer>
@@ -152,6 +153,16 @@ const OUTILS=[
     desc:'Tableau de bord complet d\u2019un export R210 : vue d\u2019ensemble, santé du parc, projections de renouvellement (durées de vie par domaine), fabricants, types, qualité des données, modèles, n\u00b0 de série, attributs, finance, contrôle réglementaire et métrologie.',
     tags:['12 vues','Projections','Santé du parc','Qualité des données','PDF complet'],
     mots:'dashboard tableau de bord projections renouvellement santé parc fabricants types qualité modèles numéro série attributs finance contrôle réglementaire métrologie pdf'
+  },
+  {
+    cls:'t-dash',
+    emoji:'💰',
+    titre:'Base de prix PTR',
+    sous:'Prix de renouvellement Eau / Assainissement',
+    href:'_Outils/PTR_Base_Prix.html',
+    desc:'Explore et compare les prix de tous les PTR (Eau Potable et Assainissement) : recherche, filtres, statistiques, nuage de points et fiche équipement. Charge un dossier entier de fichiers Excel d\u2019un coup.',
+    tags:['Multi-PTR','Recherche & filtres','Nuage de points','Charge un dossier','Export CSV'],
+    mots:'ptr prix base renouvellement eau potable assainissement recherche filtres nuage points dossier'
   }
   /* Pour ajouter un futur outil, dupliquez un bloc ci-dessus. */
 ];
