@@ -1173,11 +1173,33 @@ if(typeof XLSX==='undefined')
   setStatus('La librairie SheetJS n\'a pas pu être chargée (cdnjs.cloudflare.com inaccessible depuis ce réseau).',true);
 </script>
 
-<!-- ===== NUMERO DE VERSION (modifier ici a chaque mise a jour) ===== -->
+
+<!-- ===== VERSION + SIGNALEMENT (modifier le numero de version ici) ===== -->
 <style>
-.__ver-badge{position:fixed;right:10px;bottom:9px;z-index:40;font-family:'JetBrains Mono',Consolas,monospace;font-size:10.5px;color:#93A2B8;background:rgba(255,255,255,.82);border:1px solid #E4EAF3;border-radius:7px;padding:3px 9px;pointer-events:none;user-select:none;backdrop-filter:blur(3px);box-shadow:0 1px 3px rgba(15,35,70,.06)}
+.__ver-badge{position:fixed;right:10px;bottom:9px;z-index:40;display:flex;align-items:center;gap:8px;font-family:'JetBrains Mono',Consolas,monospace;font-size:10.5px;background:rgba(255,255,255,.86);border:1px solid #E4EAF3;border-radius:8px;padding:3px 5px 3px 10px;backdrop-filter:blur(3px);box-shadow:0 1px 3px rgba(15,35,70,.06)}
+.__ver-txt{color:#93A2B8;user-select:none}
+.__ver-report{color:#B45309;background:rgba(217,119,6,.10);border:1px solid rgba(217,119,6,.22);border-radius:6px;padding:2px 8px;text-decoration:none;font-weight:600;cursor:pointer;white-space:nowrap;transition:all .12s}
+.__ver-report:hover{background:rgba(217,119,6,.18);border-color:rgba(217,119,6,.4)}
 @media print{.__ver-badge{display:none}}
 </style>
-<div class="__ver-badge">Comparateur R210 · v1.0 · juillet 2026</div>
+<div class="__ver-badge">
+  <span class="__ver-txt">Comparateur R210 · v1.0 · juillet 2026</span>
+  <a class="__ver-report" id="__report" title="Signaler un problème par mail">⚠ Signaler</a>
+</div>
+<script>
+(function(){
+  var nom='Comparateur R210', ver='v1.0', date='juillet 2026', mail='tanguy.bayle@suez.com';
+  var a=document.getElementById("__report"); if(!a) return;
+  var corps="Bonjour Tanguy,\n\n"+
+    "Outil : "+nom+"\n"+
+    "Version : "+ver+" ("+date+")\n"+
+    "Navigateur : "+navigator.userAgent+"\n\n"+
+    "\u2014 Ce que je faisais :\n\n\n"+
+    "\u2014 Ce qui s\u2019est passé (ou le message affiché) :\n\n\n"+
+    "\u2014 (facultatif) fichier concerné :\n\n\n"+
+    "Merci !";
+  a.href="mailto:"+mail+"?subject="+encodeURIComponent("Signalement \u2014 "+nom+" "+ver)+"&body="+encodeURIComponent(corps);
+})();
+</script>
 </body>
 </html>
