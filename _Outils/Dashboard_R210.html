@@ -580,6 +580,13 @@ document.getElementById('s').addEventListener('input',function(e){
   document.getElementById('cnt').textContent=n.toLocaleString('fr-FR')+' / '+rowsAll.length.toLocaleString('fr-FR')+' lignes';
 });
 </${'scr'+'ipt'}>
+
+<!-- ===== NUMERO DE VERSION (modifier ici a chaque mise a jour) ===== -->
+<style>
+.__ver-badge{position:fixed;right:10px;bottom:9px;z-index:40;font-family:'JetBrains Mono',Consolas,monospace;font-size:10.5px;color:#93A2B8;background:rgba(255,255,255,.82);border:1px solid #E4EAF3;border-radius:7px;padding:3px 9px;pointer-events:none;user-select:none;backdrop-filter:blur(3px);box-shadow:0 1px 3px rgba(15,35,70,.06)}
+@media print{.__ver-badge{display:none}}
+</style>
+<div class="__ver-badge">Dashboard R210 · v1.0 · juillet 2026</div>
 </body></html>`;
   const w=window.open('','_blank','width=1200,height=800');
   if(!w){ alert("La fenêtre détachée a été bloquée par le navigateur. Autorisez les pop-ups pour ce fichier."); return; }
