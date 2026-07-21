@@ -7,6 +7,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <style>
 :root{--bg:#F4F7FB;--panel:#fff;--panel2:#F8FAFD;--line:#E4EAF3;--line2:#CBD7E6;
  --txt:#1E293B;--muted:#5B6B82;--faint:#93A2B8;--accent:#1B6FE8;--teal:#0D9488;--navy:#132446;
@@ -27,31 +28,51 @@ body{background:var(--bg);color:var(--txt);font-family:var(--sans);font-size:14p
  font-family:var(--sans);border:1px solid var(--line2);background:var(--panel);color:var(--txt);transition:all .12s}
 .btn:hover{border-color:var(--accent);color:var(--accent)}
 .btn.teal{background:linear-gradient(135deg,var(--teal),#0B7C72);color:#fff;border:none;box-shadow:0 3px 12px rgba(13,148,136,.26)}
+/* KPI */
 .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:14px;margin-bottom:20px}
-.stat{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:15px 17px;box-shadow:var(--shadow)}
+.stat{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:15px 17px;box-shadow:var(--shadow);cursor:pointer;transition:all .14s}
+.stat:hover{border-color:var(--accent);transform:translateY(-2px)}
 .stat .v{font-family:var(--disp);font-size:25px;font-weight:700;color:var(--navy)}
 .stat .l{font-size:12px;color:var(--muted);margin-top:2px}
 .stat.k-red .v{color:var(--red)}.stat.k-amber .v{color:var(--amber)}
+.stat.active{border-color:var(--accent);box-shadow:0 0 0 2px rgba(27,111,232,.2)}
+/* graphiques récap */
+.charts{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px}
+@media(max-width:860px){.charts{grid-template-columns:1fr}}
+.chartcard{background:var(--panel);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);padding:16px 18px}
+.chartcard .cht{font-family:var(--disp);font-size:13.5px;font-weight:700;color:var(--navy);margin-bottom:10px}
+.chartcard canvas{max-height:220px;cursor:pointer}
+/* filtres */
 .bar{display:flex;gap:10px;align-items:center;margin-bottom:14px;flex-wrap:wrap}
 .bar input[type=search]{flex:1;min-width:220px;background:var(--panel);border:1px solid var(--line2);border-radius:10px;padding:10px 13px;font-family:var(--sans);font-size:13px}
 .bar select{background:var(--panel);border:1px solid var(--line2);border-radius:10px;padding:10px 12px;font-family:var(--sans);font-size:13px;color:var(--txt)}
+/* tableau */
 .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);overflow:hidden}
-.scroll{overflow:auto;max-height:66vh}
+.scroll{overflow:auto;max-height:60vh}
 table{width:100%;border-collapse:collapse;font-size:12.5px}
 thead th{position:sticky;top:0;z-index:2;background:linear-gradient(180deg,#20406B,#182F52);color:#EAF1FB;font-family:var(--mono);
  font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.03em;text-align:left;padding:10px 11px;white-space:nowrap;cursor:pointer;user-select:none}
-thead th:hover{background:#20406B}
+thead th:hover{background:#2A5080}
 thead th .ar{opacity:.5;font-size:9px;margin-left:3px}
 tbody td{padding:8px 11px;border-bottom:1px solid var(--line);vertical-align:top}
-tbody tr:nth-child(even) td{background:var(--panel2)}
-tbody tr:hover td{background:#EAF3FE}
+tbody tr.drow{cursor:pointer;transition:background .1s}
+tbody tr.drow:hover td{background:#EAF3FE}
+tbody tr.drow.expanded td{background:#EFF5FE;border-bottom-color:#D0DFEF}
+tbody tr:nth-child(4n+1).drow td{background:var(--panel2)}
+tbody tr:nth-child(4n+1).drow:hover td,tbody tr:nth-child(4n+1).drow.expanded td{background:#EFF5FE}
 .cat{font-family:var(--mono);font-size:10px;font-weight:600;border-radius:5px;padding:2px 8px;white-space:nowrap}
 .c-alerte{color:#B91C1C;background:#FEE2E2}.c-verif{color:#B45309;background:#FEF3C7}
-.ano{font-weight:600}
-.tt{font-family:var(--mono);font-size:11px;color:var(--muted)}
-.ctx{color:var(--faint);font-size:11.5px}
+.ano{font-weight:600}.tt{font-family:var(--mono);font-size:11px;color:var(--muted)}.ctx{color:var(--faint);font-size:11.5px}
 .empty{padding:40px;text-align:center;color:var(--muted)}
-/* écran de chargement */
+/* panneau détail */
+.detail-row td{padding:0!important;border-bottom:1px solid var(--line)}
+.detail-panel{background:linear-gradient(180deg,#F8FAFD,#EFF3FA);padding:16px 20px;border-top:1px solid #D0DFEF}
+.detail-panel .dp-title{font-family:var(--disp);font-size:13px;font-weight:700;color:var(--navy);margin-bottom:10px}
+.detail-panel .dp-info{font-size:12px;color:var(--muted);margin-bottom:12px;line-height:1.7}
+.detail-panel .dp-info b{color:var(--txt)}
+.detail-panel canvas{max-height:180px;margin-top:6px}
+.dp-nodata{font-size:12px;color:var(--faint);font-style:italic}
+/* loader */
 #loader{position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:var(--bg);font-family:var(--sans)}
 #loader::before{content:'';position:absolute;inset:0;pointer-events:none;
  background:radial-gradient(900px 440px at 82% -8%,rgba(27,111,232,.08),transparent 60%),radial-gradient(720px 400px at 4% 0%,rgba(13,148,136,.07),transparent 60%)}
@@ -81,7 +102,7 @@ tbody tr:hover td{background:#EAF3FE}
       <div><div class="bt">SUEZ — Gestion d'Actif</div><div class="bs">Contrôle qualité des données Eaux Parasites</div></div>
       <span class="au">Tanguy BAYLE</span></div>
     <div class="ti">Analyse Eaux Parasites</div>
-    <div class="de">Déposez un ou plusieurs bilans Aquacalc (.xlsm). L'outil lit l'onglet <b>Data</b> et liste les anomalies de données. Tout se passe dans votre navigateur.</div>
+    <div class="de">Déposez un ou plusieurs bilans Aquacalc (.xlsm). L'outil lit l'onglet <b>Data</b> et liste les anomalies de données.<br>Cliquez sur une ligne pour voir la série de mesures en contexte. Tout se passe dans votre navigateur.</div>
     <label class="drop" for="fi">
       <div style="font-size:26px;margin-bottom:6px">📊</div>
       <div class="t">Glissez vos fichiers ici, ou cliquez pour choisir</div>
@@ -89,7 +110,7 @@ tbody tr:hover td{background:#EAF3FE}
       <input id="fi" type="file" accept=".xlsm,.xlsx,.xls" multiple style="display:none">
     </label>
     <div id="log"></div>
-    <div class="note">ℹ️ Les « Alertes » sont des défauts certains (dates, trous, valeurs impossibles). Les « À vérifier » sont des signaux à juger par vous (négatifs, valeurs figées, incohérences, pics).</div>
+    <div class="note">ℹ️ <b>Alertes</b> = défauts certains (dates, trous). <b>À vérifier</b> = signaux à juger (négatifs, figées, pics, incohérences).<br>Cliquez une ligne du tableau pour voir un graphique de la mesure avec l'anomalie en contexte.</div>
   </div>
 </div>
 
@@ -103,17 +124,19 @@ tbody tr:hover td{background:#EAF3FE}
   </div></div>
   <div class="wrap">
     <div class="stats" id="stats"></div>
+    <div class="charts" id="charts"></div>
     <div class="bar">
       <input type="search" id="q" placeholder="Rechercher un point, une mesure…">
       <select id="fcat"><option value="">Toutes catégories</option><option>Alerte</option><option>À vérifier</option></select>
       <select id="fano"><option value="">Toutes anomalies</option></select>
       <select id="ffic"><option value="">Tous fichiers</option></select>
     </div>
-    <div class="card"><div class="scroll"><table id="tbl"></table></div></div>
+    <div class="card"><div class="scroll" id="scroll"><table id="tbl"></table></div></div>
   </div>
 </div>
 
 <script>
+
 // ===== Moteur d'analyse des anomalies — export Aquacalc (onglet Data) =====
 function _num(v){return typeof v==='number'?v:(v==null||v===''?null:parseFloat(String(v).replace(',','.')));}
 function _estDateVal(x){return typeof x==='number'&&x>=45000&&x<=47500;}
@@ -179,10 +202,13 @@ function analyser(aoa, opts){
           date:_serieToDate(ds[i]),ligne:'',valeur:'',contexte:'après '+_serieToDate(ds[i-1])})); break; } }
       // trous : écart > 1 jour entre deux dates consécutives (séries journalières)
       const journ = ds.length>=20 && (ds[ds.length-1]-ds[0])/ds.length < 2;
-      if(journ){ let trous=0,ex='';
-        for(let i=1;i<ds.length;i++){const gap=Math.round(ds[i]-ds[i-1]); if(gap>1){trous+=gap-1; if(!ex)ex=_serieToDate(ds[i-1])+' → '+_serieToDate(ds[i]);}}
-        if(trous) add(Object.assign({},base,{categorie:'Alerte',anomalie:'Trou dans la série',
-          date:'',ligne:'',valeur:trous+' jour(s) manquant(s)',contexte:ex})); }
+      if(journ){ let trous=0,nbTrous=0,maxGap=0,maxFrom=null,maxTo=null;
+        for(let i=1;i<ds.length;i++){const gap=Math.round(ds[i]-ds[i-1]); if(gap>1){trous+=gap-1;nbTrous++;if(gap>maxGap){maxGap=gap;maxFrom=ds[i-1];maxTo=ds[i];}}}
+        if(trous){var ctx='plus gros trou : '+_serieToDate(maxFrom)+' \u2192 '+_serieToDate(maxTo)+' ('+(maxGap-1)+' j.)';
+          if(nbTrous>1) ctx+=', '+nbTrous+' trous au total';
+          add(Object.assign({},base,{categorie:'Alerte',anomalie:'Trou dans la s\u00e9rie',
+          date:'',ligne:'',valeur:trous+' jour(s) manquant(s)',contexte:ctx})); }
+      }
     }
     if(!nums.length) continue;
     // -- À VÉRIFIER : négatifs --
@@ -194,14 +220,16 @@ function analyser(aoa, opts){
     let run=1,maxRun=1,maxVal=nums[0].v,maxAt=nums[0];
     for(let i=1;i<nums.length;i++){ if(nums[i].v===nums[i-1].v){run++; if(run>maxRun){maxRun=run;maxVal=nums[i].v;maxAt=nums[i-1];}} else run=1; }
     if(maxRun>=RUN && maxVal!==0) add(Object.assign({},base,{categorie:'À vérifier',anomalie:'Valeur figée',
-      date:_serieToDate(maxAt.d),ligne:maxAt.row,valeur:maxVal,contexte:maxRun+'× d\u2019affilée'}));
+      date:_serieToDate(maxAt.d),ligne:maxAt.row,valeur:maxVal,contexte:'valeur '+maxVal+' répétée '+maxRun+' jours d\u2019affilée (capteur bloqué ?)'}));
     // -- À VÉRIFIER : pics extrêmes (> Q3 + K*IQR) --
     const x=nums.map(p=>p.v).sort((a,b)=>a-b),n=x.length;
     if(n>=10 && m.type!=='Pluie'){const q1=x[Math.floor((n-1)*.25)],q3=x[Math.floor((n-1)*.75)],iqr=q3-q1;
       if(iqr>0){const lim=q3+KIQR*iqr; const pics=nums.filter(p=>p.v>lim);
         if(pics.length){const pk=pics.slice().sort((a,b)=>b.v-a.v)[0];
+          const moy=Math.round(nums.reduce(function(s,p){return s+p.v;},0)/nums.length*10)/10;
+          const ratio=moy>0?Math.round(pk.v/moy*10)/10:0;
           add(Object.assign({},base,{categorie:'À vérifier',anomalie:'Pic extrême',
-            date:_serieToDate(pk.d),ligne:pk.row,valeur:pk.v,contexte:pics.length+' pic(s) > '+Math.round(lim)}));}}}
+            date:_serieToDate(pk.d),ligne:pk.row,valeur:pk.v,contexte:pics.length+' jour(s) anormalement haut(s) \u2014 moyenne '+moy+', max '+pk.v+(ratio>=2?' (\u00d7'+ratio+' la moyenne)':'')}));}}}
   }
   // -- À VÉRIFIER : incohérence TS > TT (même point, même date) --
   const parPoint={};
@@ -217,13 +245,23 @@ function analyser(aoa, opts){
       anomalie:'Temps sec > Tous temps',date:_serieToDate(cas[0].d),ligne:cas[0].row,
       valeur:cas.length+' jour(s)',contexte:'ex: TS='+cas[0].ts+' > TT='+cas[0].tt});
   }
-  return {mesures:mes.length, points:[...new Set(mes.map(m=>m.point))].length, anomalies:A};
+  // séries brutes pour les mini-graphiques
+  var series=mes.map(function(m){
+    var pts=m.pts.filter(function(p){return Number.isFinite(p.v);});
+    return {nom:m.nom,point:m.point,type:m.type,
+      dates:pts.map(function(p){return p.d;}),
+      vals:pts.map(function(p){return p.v;}),
+      dateStrs:pts.map(function(p){return _serieToDate(p.d);})};
+  });
+  return {mesures:mes.length, points:[...new Set(mes.map(m=>m.point))].length, anomalies:A, series:series};
 }
+
 
 </script>
 <script>
 (function(){
-  var ANOMALIES=[], loader=document.getElementById('loader'), logEl=document.getElementById('log');
+  var ANOMALIES=[], ALL_SERIES=[], loader=document.getElementById('loader'), logEl=document.getElementById('log');
+  var chartParType=null, chartParPoint=null;
   function log(m,c){var d=document.createElement('div');if(c)d.className=c;d.textContent=m;logEl.appendChild(d);logEl.scrollTop=logEl.scrollHeight;}
   var input=document.getElementById('fi');
   input.addEventListener('change',function(){if(input.files.length)traiter(input.files);});
@@ -236,7 +274,7 @@ function analyser(aoa, opts){
     var files=[].slice.call(fl).filter(function(f){return /\.(xlsm|xlsx|xls)$/i.test(f.name)&&!/^~\$/.test(f.name);});
     if(!files.length){log('Aucun fichier Excel valide.','err');return;}
     logEl.innerHTML=''; log('Analyse de '+files.length+' fichier(s)…');
-    ANOMALIES=[]; var i=0;
+    ANOMALIES=[]; ALL_SERIES=[]; var i=0;
     (function suite(){
       if(i>=files.length){terminer();return;}
       var f=files[i], fr=new FileReader();
@@ -249,7 +287,9 @@ function analyser(aoa, opts){
             var aoa=XLSX.utils.sheet_to_json(wb.Sheets[sh],{header:1,defval:null,raw:true});
             var R=analyser(aoa);
             R.anomalies.forEach(function(a){a.fichier=f.name;});
+            R.series.forEach(function(s){s.fichier=f.name;});
             ANOMALIES=ANOMALIES.concat(R.anomalies);
+            ALL_SERIES=ALL_SERIES.concat(R.series);
             log('  ✓ '+f.name+' — '+R.mesures+' mesures, '+R.points+' points, '+R.anomalies.length+' anomalies','ok');
           }
         }catch(err){log('  ✗ '+f.name+' : '+err.message,'err');}
@@ -261,42 +301,90 @@ function analyser(aoa, opts){
 
   function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
   var SORT={key:'categorie',dir:1};
+  var activeFilter=null; // pour filtrage par clic sur KPI
 
   function terminer(){
-    if(!ANOMALIES.length){log('Aucune anomalie détectée (ou aucun onglet Data lisible).','err');
-      setTimeout(function(){loader.style.display='none';document.getElementById('app').style.display='block';
-        document.getElementById('tbl').innerHTML='<tbody><tr><td class="empty">Aucune anomalie détectée. 🎉</td></tr></tbody>';
-        document.getElementById('sub').textContent='0 anomalie';},300);
-      return;}
-    // remplir les filtres
+    if(!ANOMALIES.length){
+      loader.style.display='none';document.getElementById('app').style.display='block';
+      document.getElementById('tbl').innerHTML='<tbody><tr><td class="empty">Aucune anomalie détectée. 🎉</td></tr></tbody>';
+      document.getElementById('sub').textContent='0 anomalie';return;}
     var anos=[...new Set(ANOMALIES.map(function(a){return a.anomalie;}))].sort();
     document.getElementById('fano').innerHTML='<option value="">Toutes anomalies</option>'+anos.map(function(a){return '<option>'+esc(a)+'</option>';}).join('');
     var fics=[...new Set(ANOMALIES.map(function(a){return a.fichier;}))].sort();
     document.getElementById('ffic').innerHTML='<option value="">Tous fichiers</option>'+fics.map(function(f){return '<option>'+esc(f)+'</option>';}).join('');
+    rendreGraphiques();
     rendre();
     loader.style.display='none'; document.getElementById('app').style.display='block';
+  }
+
+  var PALETTE=['#1B6FE8','#0D9488','#D97706','#8B5CF6','#DB2777','#059669','#DC2626','#6366F1','#F59E0B','#10B981'];
+  function rendreGraphiques(){
+    var ch=document.getElementById('charts');
+    ch.innerHTML='<div class="chartcard"><div class="cht">Anomalies par type</div><canvas id="cType"></canvas></div>'+
+                 '<div class="chartcard"><div class="cht">Anomalies par point</div><canvas id="cPoint"></canvas></div>';
+    // par type
+    var types={};ANOMALIES.forEach(function(a){types[a.anomalie]=(types[a.anomalie]||0)+1;});
+    var tLabels=Object.keys(types).sort(function(a,b){return types[b]-types[a];});
+    chartParType=new Chart(document.getElementById('cType'),{type:'doughnut',
+      data:{labels:tLabels,datasets:[{data:tLabels.map(function(t){return types[t];}),
+        backgroundColor:tLabels.map(function(_,i){return PALETTE[i%PALETTE.length];}),borderWidth:2,borderColor:'#fff'}]},
+      options:{plugins:{legend:{position:'right',labels:{font:{family:"'Inter'",size:11},boxWidth:12,padding:8}},
+        tooltip:{callbacks:{label:function(ctx){return ctx.label+' : '+ctx.parsed+' anomalie(s)'}}}},
+        onClick:function(evt,els){if(!els.length)return;var idx=els[0].index;var label=tLabels[idx];
+          var sel=document.getElementById('fano');
+          if(sel.value===label){sel.value='';} else {sel.value=label;}
+          activeFilter=null;document.querySelectorAll('.stat').forEach(function(x){x.classList.remove('active');});filtrer();},
+        cutout:'55%',animation:{animateRotate:true,duration:600}}});
+    // par point
+    var pts={};ANOMALIES.forEach(function(a){pts[a.point]=(pts[a.point]||0)+1;});
+    var pLabels=Object.keys(pts).sort(function(a,b){return pts[b]-pts[a];}).slice(0,10);
+    chartParPoint=new Chart(document.getElementById('cPoint'),{type:'bar',
+      data:{labels:pLabels.map(function(p){return p.length>25?p.slice(0,23)+'…':p;}),
+        datasets:[{data:pLabels.map(function(p){return pts[p];}),
+          backgroundColor:pLabels.map(function(_,i){return PALETTE[i%PALETTE.length];}),borderRadius:5}]},
+      options:{indexAxis:'y',plugins:{legend:{display:false},
+        tooltip:{callbacks:{label:function(ctx){return ctx.parsed.x+' anomalie(s)'}}}},
+        onClick:function(evt,els){if(!els.length)return;var idx=els[0].index;var label=pLabels[idx];
+          var qEl=document.getElementById('q');
+          if(qEl.value===label){qEl.value='';} else {qEl.value=label;}
+          activeFilter=null;document.querySelectorAll('.stat').forEach(function(x){x.classList.remove('active');});filtrer();},
+        scales:{x:{grid:{color:'#E4EAF3'},ticks:{font:{family:"'JetBrains Mono'",size:10}}},
+          y:{ticks:{font:{family:"'Inter'",size:11}},grid:{display:false}}},
+        animation:{duration:500}}});
   }
 
   function rendre(){
     var al=ANOMALIES.filter(function(a){return a.categorie==='Alerte';}).length;
     var av=ANOMALIES.length-al;
     var pts=[...new Set(ANOMALIES.map(function(a){return a.fichier+'|'+a.point;}))].length;
+    var fics=[...new Set(ANOMALIES.map(function(a){return a.fichier;}))].length;
     document.getElementById('sub').textContent=ANOMALIES.length+' anomalies · '+al+' alertes';
-    document.getElementById('stats').innerHTML=
-      stat(ANOMALIES.length,'Anomalies au total','')+
-      stat(al,'Alertes (certaines)','k-red')+
-      stat(av,'À vérifier','k-amber')+
-      stat([...new Set(ANOMALIES.map(function(a){return a.fichier;}))].length,'Fichiers','')+
-      stat(pts,'Points concernés','');
-    ['q','fcat','fano','ffic'].forEach(function(id){var el=document.getElementById(id);
-      el.oninput=el.onchange=filtrer;});
+    var s=document.getElementById('stats');
+    s.innerHTML=statH(ANOMALIES.length,'Anomalies au total','','all')+statH(al,'Alertes (certaines)','k-red','alerte')+
+      statH(av,'À vérifier','k-amber','verif')+statH(fics,'Fichiers','','fic')+statH(pts,'Points concernés','','pts');
+    s.querySelectorAll('.stat').forEach(function(el){
+      el.addEventListener('click',function(){
+        var f=this.getAttribute('data-f');
+        if(activeFilter===f){activeFilter=null;document.getElementById('fcat').value='';this.classList.remove('active');}
+        else{activeFilter=f;
+          if(f==='alerte')document.getElementById('fcat').value='Alerte';
+          else if(f==='verif')document.getElementById('fcat').value='À vérifier';
+          else document.getElementById('fcat').value='';
+          s.querySelectorAll('.stat').forEach(function(x){x.classList.remove('active');});
+          this.classList.add('active');}
+        filtrer();
+      });
+    });
+    ['q','fcat','fano','ffic'].forEach(function(id){var el=document.getElementById(id);el.oninput=el.onchange=function(){activeFilter=null;s.querySelectorAll('.stat').forEach(function(x){x.classList.remove('active');});filtrer();};});
     document.getElementById('xls').onclick=exportExcel;
     filtrer();
   }
-  function stat(v,l,c){return '<div class="stat '+(c||'')+'"><div class="v">'+v+'</div><div class="l">'+l+'</div></div>';}
+  function statH(v,l,c,f){return '<div class="stat '+(c||'')+'" data-f="'+f+'"><div class="v">'+v+'</div><div class="l">'+l+'</div></div>';}
 
   var COLS=[['categorie','Catégorie'],['anomalie','Anomalie'],['fichier','Fichier'],['point','Point'],
     ['mesure','Mesure'],['date','Date'],['valeur','Valeur / nombre'],['contexte','Contexte']];
+  var expandedId=null, detailChart=null;
+
   function filtrer(){
     var q=(document.getElementById('q').value||'').toLowerCase();
     var fc=document.getElementById('fcat').value, fa=document.getElementById('fano').value, ff=document.getElementById('ffic').value;
@@ -309,15 +397,94 @@ function analyser(aoa, opts){
       return String(a).localeCompare(String(b),'fr')*SORT.dir;});
     var head='<thead><tr>'+COLS.map(function(c){var ar=SORT.key===c[0]?'<span class="ar">'+(SORT.dir>0?'▲':'▼')+'</span>':'';
       return '<th data-k="'+c[0]+'">'+c[1]+ar+'</th>';}).join('')+'</tr></thead>';
-    var body='<tbody>'+(rows.length?rows.map(function(a){
-      return '<tr><td><span class="cat '+(a.categorie==='Alerte'?'c-alerte':'c-verif')+'">'+esc(a.categorie)+'</span></td>'+
-        '<td class="ano">'+esc(a.anomalie)+'</td><td class="tt">'+esc(a.fichier).slice(0,26)+'</td>'+
+    var body='<tbody>'+(rows.length?rows.map(function(a,idx){
+      return '<tr class="drow" data-idx="'+idx+'"><td><span class="cat '+(a.categorie==='Alerte'?'c-alerte':'c-verif')+'">'+esc(a.categorie)+'</span></td>'+
+        '<td class="ano">'+esc(a.anomalie)+'</td><td class="tt">'+esc(a.fichier).slice(0,28)+'</td>'+
         '<td>'+esc(a.point)+'</td><td>'+esc(a.mesure)+'</td>'+
         '<td class="tt">'+esc(a.date)+'</td><td>'+esc(a.valeur)+'</td><td class="ctx">'+esc(a.contexte)+'</td></tr>';
     }).join(''):'<tr><td class="empty" colspan="8">Aucune anomalie ne correspond aux filtres.</td></tr>')+'</tbody>';
     var t=document.getElementById('tbl'); t.innerHTML=head+body;
+    expandedId=null; if(detailChart){detailChart.destroy();detailChart=null;}
     t.querySelectorAll('th').forEach(function(th){th.onclick=function(){var k=th.getAttribute('data-k');
       if(SORT.key===k)SORT.dir*=-1;else{SORT.key=k;SORT.dir=1;}filtrer();};});
+    t.querySelectorAll('tr.drow').forEach(function(tr){
+      tr.addEventListener('click',function(){toggleDetail(tr,rows[parseInt(tr.getAttribute('data-idx'))]);});
+    });
+  }
+
+  function toggleDetail(tr,anom){
+    var id=anom.fichier+'|'+anom.mesure+'|'+anom.anomalie;
+    // fermer l'ancien
+    var old=document.querySelector('.detail-row');if(old)old.remove();
+    document.querySelectorAll('.drow.expanded').forEach(function(r){r.classList.remove('expanded');});
+    if(detailChart){detailChart.destroy();detailChart=null;}
+    if(expandedId===id){expandedId=null;return;}
+    expandedId=id;
+    tr.classList.add('expanded');
+    // créer la ligne détail
+    var dtr=document.createElement('tr');dtr.className='detail-row';
+    var dtd=document.createElement('td');dtd.colSpan=8;
+    var panel=document.createElement('div');panel.className='detail-panel';
+    dtd.appendChild(panel);dtr.appendChild(dtd);
+    tr.parentNode.insertBefore(dtr,tr.nextSibling);
+    // chercher la série correspondante
+    var mesureNom=anom.mesure;
+    if(anom.anomalie==='Temps sec > Tous temps') mesureNom=''; // cas spécial
+    var serie=ALL_SERIES.find(function(s){return s.fichier===anom.fichier && s.nom===mesureNom;});
+    if(!serie && mesureNom){
+      // essai partiel
+      serie=ALL_SERIES.find(function(s){return s.fichier===anom.fichier && mesureNom.indexOf(s.nom)>=0;});
+    }
+    panel.innerHTML='<div class="dp-title">📈 '+esc(anom.mesure)+' — '+esc(anom.point)+'</div>'+
+      '<div class="dp-info"><b>Anomalie :</b> '+esc(anom.anomalie)+' · <b>Fichier :</b> '+esc(anom.fichier)+
+      (anom.date?' · <b>Date :</b> '+esc(anom.date):'')+
+      (anom.contexte?' · '+esc(anom.contexte):'')+'</div>';
+    if(!serie || !serie.vals.length){
+      panel.innerHTML+='<div class="dp-nodata">Série de données non disponible pour cette anomalie.</div>';
+      return;
+    }
+    var canvas=document.createElement('canvas');canvas.height=160;panel.appendChild(canvas);
+    // préparer les données du graphique
+    var labels=serie.dateStrs, vals=serie.vals;
+    // couleur des points : highlight autour de la date de l'anomalie
+    var anomDate=anom.date||'';
+    var pointBg=vals.map(function(_,i){
+      if(anomDate && labels[i]===anomDate) return '#DC2626';
+      return 'transparent';
+    });
+    var pointR=vals.map(function(_,i){return (anomDate && labels[i]===anomDate)?6:0;});
+    // si c'est un pic, colorer tous les pics
+    if(anom.anomalie==='Pic extrême'){
+      var sorted=vals.slice().sort(function(a,b){return a-b;});
+      var n=sorted.length,q1=sorted[Math.floor((n-1)*.25)],q3=sorted[Math.floor((n-1)*.75)],iqr=q3-q1;
+      var lim=q3+3*iqr;
+      pointBg=vals.map(function(v){return v>lim?'#DC2626':'transparent';});
+      pointR=vals.map(function(v){return v>lim?5:0;});
+    }
+    // si c'est des négatifs, colorer les négatifs
+    if(anom.anomalie.indexOf('gativ')>=0){
+      pointBg=vals.map(function(v){return v<0?'#DC2626':'transparent';});
+      pointR=vals.map(function(v){return v<0?5:0;});
+    }
+    // si c'est figée, colorer la zone figée
+    if(anom.anomalie==='Valeur figée'){
+      var fv=parseFloat(anom.valeur);
+      pointBg=vals.map(function(v){return v===fv?'#D97706':'transparent';});
+      pointR=vals.map(function(v){return v===fv?4:0;});
+    }
+    detailChart=new Chart(canvas,{type:'line',
+      data:{labels:labels,datasets:[{data:vals,borderColor:'#1B6FE8',borderWidth:1.5,
+        pointBackgroundColor:pointBg,pointRadius:pointR,pointHoverRadius:6,
+        fill:{target:'origin',above:'rgba(27,111,232,.06)'},tension:.2}]},
+      options:{plugins:{legend:{display:false},tooltip:{callbacks:{
+        title:function(ctx){return ctx[0].label;},
+        label:function(ctx){return 'Valeur : '+ctx.parsed.y;}}}},
+        scales:{x:{ticks:{maxTicksLimit:12,font:{family:"'JetBrains Mono'",size:9},maxRotation:45},grid:{display:false}},
+          y:{ticks:{font:{family:"'JetBrains Mono'",size:10}},grid:{color:'#E4EAF3'}}},
+        animation:{duration:400},interaction:{mode:'nearest',intersect:false}}
+    });
+    // scroll vers le détail
+    dtr.scrollIntoView({behavior:'smooth',block:'nearest'});
   }
 
   async function exportExcel(){
@@ -349,12 +516,12 @@ function analyser(aoa, opts){
 @media print{.__ver-badge{display:none}}
 </style>
 <div class="__ver-badge">
-  <span class="__ver-txt">Analyse Eaux Parasites · v1.0 · juillet 2026</span>
+  <span class="__ver-txt">Analyse Eaux Parasites · v1.1 · juillet 2026</span>
   <a class="__ver-report" id="__report" title="Signaler un problème par mail">⚠ Signaler</a>
 </div>
 <script>
 (function(){
-  var nom="Analyse Eaux Parasites", ver="v1.0", date="juillet 2026", mail="tanguy.bayle@suez.com";
+  var nom="Analyse Eaux Parasites", ver="v1.1", date="juillet 2026", mail="tanguy.bayle@suez.com";
   var a=document.getElementById("__report"); if(!a) return;
   var corps="Bonjour Tanguy,\n\n"+"Outil : "+nom+"\n"+"Version : "+ver+" ("+date+")\n"+"Navigateur : "+navigator.userAgent+"\n\n"+
     "\u2014 Ce que je faisais :\n\n\n"+"\u2014 Ce qui s\u2019est passé :\n\n\n"+"Merci !";
