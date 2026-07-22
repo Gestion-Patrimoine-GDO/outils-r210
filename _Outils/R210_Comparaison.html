@@ -299,7 +299,7 @@ dialog::backdrop{background:rgba(15,23,42,.35);backdrop-filter:blur(3px)}
         <table>
           <thead><tr>
             <th data-tk="lib">Type d'équipement</th>
-            <th data-tk="nbEquip">Équip.</th>
+            <th data-tk="nbTotal" title="Nombre total d'équipements de ce type dans le T1 (communs + créés)">Équip.</th>
             <th data-tk="attendues">Attendus</th>
             <th data-tk="rens2">Renseignés</th>
             <th data-tk="manquantes">Manquants</th>
@@ -347,6 +347,11 @@ dialog::backdrop{background:rgba(15,23,42,.35);backdrop-filter:blur(3px)}
 </dialog>
 
 <script>
+// ===== COMPARATEUR R210 — CONFIGURATION =====
+// Version : v1.0
+// Les constantes modifiables sont regroupées ci-dessous.
+// ===== FIN ENTÊTE =====
+
 /* =================================================================
    R210 DIFF v3.0 — comparateur d'inventaires, 100% côté navigateur
    KPIs direction : équipements créés / à supprimer / modifiés,
@@ -470,6 +475,15 @@ function comparerDonnees(rows1,rows2,cleNom){
       libParType.set(t,lib);
     }
   }
+  // aussi remplir typeParCle pour les CRÉÉS (pour le comptage par type)
+  for(const k of clesCreees){
+    let t=iType2>=0?normaliser(rows2[idx2.get(k)][iType2]):'';
+    typeParCle.set(k,t);
+    if(!libParType.has(t)){
+      let lib=iLib2>=0?normaliser(rows2[idx2.get(k)][iLib2]):'';
+      libParType.set(t,lib);
+    }
+  }
   // nb d'équipements appariés dont le TYPE attend chaque attribut (dénominateur pertinent)
   // pré-calcul en un seul passage sur les lignes appariées
   const attendusPourType=t=>ATTENDUS_PAR_TYPE[t]||null;
@@ -538,7 +552,7 @@ function comparerDonnees(rows1,rows2,cleNom){
     const t=typeParCle.get(k);
     const att=ATTENDUS_PAR_TYPE[t]; if(!att) continue;
     let a=aggType.get(t);
-    if(!a){ a={type:t,lib:libParType.get(t)||'',nbEquip:0,attendues:0,rens1:0,rens2:0,attrs:new Map()}; aggType.set(t,a); }
+    if(!a){ a={type:t,lib:libParType.get(t)||'',nbEquip:0,nbCrees:0,attendues:0,rens1:0,rens2:0,attrs:new Map()}; aggType.set(t,a); }
     a.nbEquip++;
     const r1=idx1.get(k), r2=idx2.get(k);
     for(const eqp of att){
@@ -553,13 +567,21 @@ function comparerDonnees(rows1,rows2,cleNom){
       d.base++; if(v1) d.rens1++; if(v2) d.rens2++;
     }
   }
+  // Compter aussi les équipements CRÉÉS (nouveaux en T1) par type
+  for(const k of clesCreees){
+    const t=typeParCle.get(k);
+    const att=ATTENDUS_PAR_TYPE[t]; if(!att) continue;
+    let a=aggType.get(t);
+    if(!a){ a={type:t,lib:libParType.get(t)||'',nbEquip:0,nbCrees:0,attendues:0,rens1:0,rens2:0,attrs:new Map()}; aggType.set(t,a); }
+    a.nbCrees++;
+  }
   const parType=[...aggType.values()].map(a=>{
     const attrs=[...a.attrs.values()].map(d=>({
       eqp:d.eqp,col:d.col,base:d.base,rens1:d.rens1,rens2:d.rens2,manquantes:d.base-d.rens2,
       pct1:d.base?Math.round(1000*d.rens1/d.base)/10:0,
       pct2:d.base?Math.round(1000*d.rens2/d.base)/10:0
     })).sort((x,y)=>y.pct2-x.pct2||x.col.localeCompare(y.col,'fr')); // les plus remplis en tête
-    return {type:a.type,lib:a.lib,nbEquip:a.nbEquip,attendues:a.attendues,rens1:a.rens1,rens2:a.rens2,
+    return {type:a.type,lib:a.lib,nbEquip:a.nbEquip,nbCrees:a.nbCrees||0,nbTotal:a.nbEquip+(a.nbCrees||0),attendues:a.attendues,rens1:a.rens1,rens2:a.rens2,
       manquantes:a.attendues-a.rens2,
       pct1:a.attendues?Math.round(1000*a.rens1/a.attendues)/10:0,
       pct2:a.attendues?Math.round(1000*a.rens2/a.attendues)/10:0,
@@ -599,7 +621,7 @@ function charger(n,fichier,zone){
       zone.querySelector('.fname').textContent=fichier.name;
       zone.querySelector('.fmeta').textContent=`${fmtN(rows.length-1)} lignes × ${rows[0].length} colonnes · feuille "${wb.SheetNames[0]}"`;
       majConfig();
-    }catch(err){ setStatus('Lecture impossible : '+esc(err.message),true); }
+    }catch(err){ setStatus('Lecture impossible : '+(err.message&&err.message.indexOf('Cannot read')>=0?'Ce fichier ne semble pas être un export R210 valide.':esc(err.message)),true); }
   };
   lecteur.readAsArrayBuffer(fichier);
 }
@@ -629,7 +651,7 @@ $('#btnRun').addEventListener('click',()=>{
       $('#btnExport').disabled=false;
       const nbActives=etat.res.detailCol.filter(c=>c.comp||c.mod||c.vid).length;
       setStatus(`Terminé — ${nbActives} colonne(s) avec différences sur ${etat.res.nbColonnes} comparées.`);
-    }catch(err){ setStatus('Erreur : '+esc(err.message),true); }
+    }catch(err){ setStatus('Erreur : '+(err.message&&err.message.indexOf('Cannot read')>=0?'Format de fichier non reconnu. Vérifiez l\'onglet Export Patrimoine.':esc(err.message)),true); }
     $('#btnRun').disabled=false;
   },30);
 });
@@ -765,7 +787,7 @@ function rendreTypes(){
     html.push(`<tr class="typerow${ouvert?' open':''}" data-type="${esc(String(t.type))}">
       <td title="code ${esc(String(t.type))}" style="font-weight:600;color:#132446">
         <span class="chev">${ouvert?'▾':'▸'}</span>${esc(t.lib||('type '+t.type))}</td>
-      <td>${fmtN(t.nbEquip)}</td>
+      <td>${fmtN(t.nbTotal)}${t.nbCrees?'<span style="font-size:10px;color:#5B6B82;margin-left:4px" title="'+t.nbEquip+' communs + '+t.nbCrees+' créés">(+'+t.nbCrees+' créés)</span>':''}</td>
       <td>${fmtN(t.attendues)}</td>
       <td style="color:var(--add);font-weight:600">${fmtN(t.rens2)}</td>
       <td style="color:var(--del);font-weight:600">${fmtN(t.manquantes)}</td>
@@ -1156,6 +1178,10 @@ $('#btnExport').addEventListener('click',async()=>{
     const wb=construireRapport(r,{
       nomF1:etat.f[0].nom, nomF2:etat.f[1].nom,
       cle:$('#keysel').value, date:new Date().toLocaleString('fr-FR')});
+// Traçabilité
+    var wsP=wb.addWorksheet('Paramètres');wsP.columns=[{header:'Paramètre',key:'p',width:35},{header:'Valeur',key:'v',width:45}];
+    wsP.addRow({p:'Outil',v:'Comparateur R210 v1.0'});wsP.addRow({p:'Date',v:new Date().toLocaleString('fr-FR')});
+    wsP.getRow(1).eachCell(function(c){c.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FF182F52'}};c.font={bold:true,color:{argb:'FFFFFFFF'}};});
     const buf=await wb.xlsx.writeBuffer();
     const ts=new Date(),p=n=>String(n).padStart(2,'0');
     const nom=`Rapport_Comparaison_R210_${ts.getFullYear()}${p(ts.getMonth()+1)}${p(ts.getDate())}_${p(ts.getHours())}${p(ts.getMinutes())}.xlsx`;

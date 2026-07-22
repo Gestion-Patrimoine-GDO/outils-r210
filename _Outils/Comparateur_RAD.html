@@ -101,6 +101,7 @@ table.diff tr.n-manq td{background:var(--manq)}
  font-size:13px;font-weight:600;color:var(--teal);cursor:pointer;transition:all .12s}
 .folder:hover{border-color:var(--teal);background:#F3FBFA;box-shadow:0 3px 10px rgba(13,148,136,.15)}
 #log{margin-top:16px;font-family:var(--mono);font-size:11.5px;color:var(--muted);max-height:170px;overflow:auto;line-height:1.7}
+.pbar{height:6px;border-radius:3px;background:#E4EAF3;margin:8px 0;overflow:hidden}.pbar span{display:block;height:100%;border-radius:3px;background:linear-gradient(90deg,#1B6FE8,#0D9488);transition:width .3s}
 #log .ok{color:var(--add)}#log .err{color:var(--del)}#log .warn{color:#D97706}
 .note{margin-top:14px;font-size:11.5px;color:var(--faint);line-height:1.6}
 #app{display:none}
@@ -127,6 +128,7 @@ table.diff tr.n-manq td{background:var(--manq)}
     <button class="folder" id="folderBtn">📁 Charger un dossier entier de RAD</button>
     <input id="folderInput" type="file" webkitdirectory directory multiple style="display:none">
     <div id="log"></div>
+    <div class="pbar" id="pbar" style="display:none"><span id="pfill" style="width:0%"></span></div>
     <div class="note">ℹ️ Les liens directs vers les fichiers Word ne sont pas disponibles dans la version navigateur (sécurité). La section Word (« Chap. 2 › … ») reste indiquée pour retrouver l'endroit.</div>
   </div>
 </div>
@@ -149,6 +151,11 @@ table.diff tr.n-manq td{background:var(--manq)}
 </div>
 
 <script>
+// ===== COMPARATEUR RAD — CONFIGURATION =====
+// Version : v1.0
+// Les constantes modifiables sont regroupées ci-dessous.
+// ===== FIN ENTÊTE =====
+
 /* ====== CŒUR (identique au programme Python, validé) ====== */
 // ===== Cœur du comparateur RAD Word, portable navigateur (DOM standard) =====
 // Namespace WordprocessingML
@@ -695,7 +702,14 @@ function apparierFichiers(items){
       if(r.diffs.length===0) wsd.addRow(['Aucune différence détectée','','','','','','']);
       styleHeader(wsd,7); wsd.autoFilter='A1:G'+wsd.rowCount; wsd.views=[{state:'frozen',ySplit:1}];
     });
-    var buf=await wb.xlsx.writeBuffer();
+    
+// Onglet Paramètres (traçabilité)
+var wsP=wb.addWorksheet('Paramètres');
+wsP.columns=[{header:'Paramètre',key:'p',width:35},{header:'Valeur',key:'v',width:45}];
+wsP.addRow({p:'Outil',v:'Comparateur RAD'});wsP.addRow({p:'Version',v:'v1.0'});
+wsP.addRow({p:"Date de l'export",v:new Date().toLocaleString('fr-FR')});
+wsP.getRow(1).eachCell(function(c){c.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FF182F52'}};c.font={bold:true,color:{argb:'FFFFFFFF'}}});
+var buf=await wb.xlsx.writeBuffer();
     var blob=new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
     var a=document.createElement('a'); a.href=URL.createObjectURL(blob);
     var d=new Date(), ds=d.getFullYear()+('0'+(d.getMonth()+1)).slice(-2)+('0'+d.getDate()).slice(-2);

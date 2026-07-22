@@ -262,6 +262,11 @@ table.dt tbody td.empty{color:#C2CDDB;font-style:italic}
 </dialog>
 
 <script>
+// ===== DASHBOARD R210 — CONFIGURATION =====
+// Version : v1.1
+// Les constantes modifiables sont regroupées ci-dessous.
+// ===== FIN ENTÊTE =====
+
 /* ================================================================
    DASHBOARD R210 — v2.0 (portage HTML du dashboard Python)
    Étape 1 : socle + Vue d'ensemble.
@@ -367,7 +372,7 @@ function charger(fichier){
       const nbEP=rows.filter(r=>r.__domaine==='Eau Potable').length;
       const nbAS=rows.length-nbEP;
       setStatus(`Chargé — ${fmtN(rows.length)} équipements (${fmtN(nbEP)} Eau Potable · ${fmtN(nbAS)} Assainissement).`);
-    }catch(err){ setStatus('Lecture impossible : '+esc(err.message),true); }
+    }catch(err){ setStatus('Lecture impossible : '+(err.message&&err.message.indexOf('Cannot read')>=0?'Ce fichier ne semble pas être un export R210 valide.':esc(err.message)),true); }
   };
   if(/\.csv$/i.test(fichier.name)) lecteur.readAsBinaryString(fichier);
   else lecteur.readAsArrayBuffer(fichier);

@@ -117,6 +117,7 @@ tbody tr.ex td{background:#F1F5F9;color:var(--muted)}
 .go:hover:not(:disabled){filter:brightness(1.06);transform:translateY(-1px)}
 .go:disabled{background:#CBD5E1;box-shadow:none;cursor:not-allowed}
 #log{margin-top:14px;font-family:var(--mono);font-size:11.5px;color:var(--muted);max-height:130px;overflow:auto;line-height:1.7}
+.pbar{height:6px;border-radius:3px;background:#E4EAF3;margin:8px 0;overflow:hidden}.pbar span{display:block;height:100%;border-radius:3px;background:linear-gradient(90deg,#1B6FE8,#0D9488);transition:width .3s}
 #log .ok{color:var(--add)}#log .err{color:var(--del)}#log .warn{color:var(--warn)}
 .note{margin-top:12px;font-size:11.5px;color:var(--faint);line-height:1.6}
 #app{display:none}
@@ -180,6 +181,7 @@ tbody tr.ex td{background:#F1F5F9;color:var(--muted)}
 
     <button class="go" id="go" disabled>Calculer et remplir le PTR →</button>
     <div id="log"></div>
+    <div class="pbar" id="pbar" style="display:none"><span id="pfill" style="width:0%"></span></div>
     <div class="note">🔒 Tout se passe sur votre poste : aucun fichier n'est envoyé sur internet.</div>
   </div>
 </div>
@@ -212,6 +214,10 @@ tbody tr.ex td{background:#F1F5F9;color:var(--muted)}
 </div>
 
 <script>
+// ===== REMPLISSAGE PTR — CONFIGURATION =====
+// Version : v1.0
+// Constantes modifiables ci-dessous.
+// ===== FIN ENTÊTE =====
 // ===== Moteur de remplissage PTR (port fidèle de Remplir_PTR_Automatique.py) =====
 function stripAccents(s){return String(s==null?'':s).normalize('NFKD').replace(/[\u0300-\u036f]/g,'');}
 function norm(s){return stripAccents(s).trim().toLowerCase().replace(/\s+/g,' ');}
@@ -561,7 +567,7 @@ async function ecrireCellules(fileBuf, nomFeuille, edits){
               log('  ✓ '+f.name+' — '+n+' équipements chiffrés','ok');
             }
           }
-        }catch(err){log('  ✗ '+f.name+' : '+err.message,'err');}
+        }catch(err){var msg=err.message;if(msg&&msg.indexOf('Cannot read')>=0)msg='Format non reconnu';log('  ✗ '+f.name+' : '+msg,'err');}
         i++; setTimeout(suite,10);
       };
       fr.readAsArrayBuffer(f);
@@ -594,7 +600,7 @@ async function ecrireCellules(fileBuf, nomFeuille, edits){
         log('PTR vierge : '+LIGNES.length+' lignes détectées.','ok');
         document.getElementById('i2').textContent=LIGNES.length+' lignes';
         document.getElementById('z2').classList.add('done'); check();
-      }catch(err){log('PTR vierge : '+err.message,'err');}
+      }catch(err){var msg=err.message;if(msg&&msg.indexOf('Cannot read')>=0)msg='Ce fichier ne semble pas être un PTR valide';log('PTR vierge : '+msg,'err');}
     };
     fr.readAsArrayBuffer(f);
   }
@@ -783,7 +789,14 @@ async function ecrireCellules(fileBuf, nomFeuille, edits){
       cell.font={name:'Calibri',bold:true,color:{argb:'FFFFFFFF'},size:11};
       cell.alignment={vertical:'middle',wrapText:true};}
     ws.autoFilter='A1:O'+ws.rowCount; ws.views=[{state:'frozen',ySplit:1}];
-    var buf=await wb.xlsx.writeBuffer();
+    
+// Onglet Paramètres (traçabilité)
+var wsP=wb.addWorksheet('Paramètres');
+wsP.columns=[{header:'Paramètre',key:'p',width:35},{header:'Valeur',key:'v',width:45}];
+wsP.addRow({p:'Outil',v:'Remplissage PTR'});wsP.addRow({p:'Version',v:'v1.0'});
+wsP.addRow({p:"Date de l'export",v:new Date().toLocaleString('fr-FR')});
+wsP.getRow(1).eachCell(function(c){c.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FF182F52'}};c.font={bold:true,color:{argb:'FFFFFFFF'}}});
+var buf=await wb.xlsx.writeBuffer();
     var blob=new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
     var a=document.createElement('a'); a.href=URL.createObjectURL(blob);
     a.download=NOM_PTR.replace(/\.[^.]+$/,'')+'_VALEURS.xlsx'; a.click(); URL.revokeObjectURL(a.href);
