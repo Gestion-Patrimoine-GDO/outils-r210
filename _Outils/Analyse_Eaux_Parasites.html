@@ -402,8 +402,8 @@ if(anom.anomalie.indexOf('Courbe Volum')>=0||anom.anomalie.indexOf('faut point')
             window._ppRange={s:new Date(Date.UTC(+p1[2],p1[1]-1,+p1[0],+rm[2].split(':')[0],+rm[2].split(':')[1])),
               e:new Date(Date.UTC(+p2[2],p2[1]-1,+p2[0],+rm[4].split(':')[0],+rm[4].split(':')[1]))};}}
         if(window._ppRange&&p.d>=window._ppRange.s&&p.d<=window._ppRange.e&&p.v===parseFloat(anom.valeur.replace(/[^\d.-]/g,'')))isA=true;}
-if(anom.anomalie.indexOf('Surd')>=0&&anom.seuilPic&&p.v>anom.seuilPic&&fmtDate(p.d)===anom.date)isA=true;
-if(anom.date&&fmtDate(p.d)===anom.date&&anom.anomalie.indexOf('Courbe Volum')<0&&anom.anomalie.indexOf('faut point')<0&&anom.anomalie.indexOf('Rupture')<0)isA=true;
+if(anom.anomalie.indexOf('Surd')>=0&&anom.seuilPic){var picVal=parseFloat(String(anom.valeur).replace(/[^\d.-]/g,''));if(p.v===picVal)isA=true;}
+if(anom.date&&fmtDate(p.d)===anom.date&&anom.anomalie.indexOf('Courbe Volum')<0&&anom.anomalie.indexOf('faut point')<0&&anom.anomalie.indexOf('Rupture')<0&&anom.anomalie.indexOf('Surd')<0)isA=true;
 colors.push(isA?couleurType(anom.anomalie):'transparent');radii.push(isA?5:0);}
 var gapZones=[];
 if(isTrou){var pasJ=serie.pas/(24*60);var nL=[],nV=[],nC=[],nR=[];
