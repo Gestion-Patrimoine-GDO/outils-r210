@@ -110,12 +110,13 @@ var CONFIG = {
 var MESSAGES={
   'Rupture de donnée Pluviométrie':{niveau:'Critique',msg:"Défaut de transmission de la donnée. Invalider/reconstruire la variable et vérifier la chaîne de mesure."},
   'Pluvio négative':{niveau:'Critique',msg:"Invalidation automatique requise. Valeur physiquement impossible."},
-  'Rupture de donnée Volumétrique':{niveau:'Critique',msg:"Défaut de transmission de la donnée. Invalider/reconstruire la variable et vérifier la chaîne de mesure."},
+  'Rupture de donnée Volume':{niveau:'Critique',msg:"Défaut de transmission de la donnée. Invalider/reconstruire la variable et vérifier la chaîne de mesure."},
   'Volume négatif':{niveau:'Critique',msg:"Vérifier le débit des pompes reporté sur AQC. Merci de réaliser un tarage."},
-  'Surdébit en Temps Sec':{niveau:'Alerte',msg:"Si la valeur correspond à un fait réel vous pouvez la conserver. Pour plus de cohérence il est possible de reconstruire la variable."},
-  'Courbe Volumétrique Figée (temps sec)':{niveau:'Alerte',msg:"Anomalie de fonctionnement du pompage ou donnée non représentative liée à une opération de maintenance."},
-  'Courbe Volumétrique Figée (temps de pluie)':{niveau:'Alerte',msg:"Possible surcharge hydraulique. Veuillez invalider la donnée pour plus de cohérence de calcul."},
-  'Décalage TS / Volume > 15%':{niveau:'Alerte',msg:"Décalage important entre chronique et volume réel. Possibilité de reconstruire le volume à partir de la chronique."}
+  'Surdébit en Temps Sec':{niveau:'Alerte',msg:"Si la valeur correspond à un fait réel (ressuyage par exemple) vous pouvez la conserver. Sinon, pour plus de cohérence, il est possible de reconstruire le volume ou de l'invalider."},
+  'Courbe Volumétrique Figée Temps Sec':{niveau:'Alerte',msg:"Possible bouchage de pompe. Veuillez reconstruire la donnée avec la chronique."},
+  'Défaut point de mesure':{niveau:'Critique',msg:'Vérifier la chaîne de mesure. Défaut capteur probable.'},
+  'Courbe Volumétrique Figée Temps de pluie':{niveau:'Alerte',msg:"Possible surcharge hydraulique. Veuillez invalider la donnée pour plus de cohérence de calcul."},
+  'Dérive chronique Temps Sec / volume réel':{niveau:'Alerte',msg:"Dérive importante entre chronique et volume réel. Possibilité de reconstruire le volume à partir de la chronique ou inversement selon le cas."}
 };
 function lireFichier(aoa){
   var noms=aoa[1]||[],mesures=[];
@@ -163,50 +164,65 @@ function analyserComplet(mesures,dS,dE,seuilPlatH){
   function estTempsSec6h(dR){
     var somme=0;
     for(var hh=0;hh<6;hh++){var clef=Math.floor((dR-hh/24)*24)/24;somme+=(plH.get(clef)||0);}
-    return somme<CONFIG.SEUIL_PLUIE_6H;
+    return somme<=CONFIG.SEUIL_PLUIE_6H;
   }
   for(var i=0;i<mesures.length;i++){var m=mesures[i];
     var pts=m.pts.filter(function(p){return p.d>=dS&&p.d<=dE;});if(!pts.length)continue;
     var base={point:m.point,mesure:m.nom,mType:m.type};
     var nums=pts.filter(function(p){return p.v!=null&&isFinite(p.v);});
     var isPl=/pluvio/i.test(m.nom),isVol=m.type==='VOL_HORAIRE'||m.type==='VOL_TOTAL';
+    // Filtrer changement d'heure (faux positifs)
+    function estChangementHeure(d1,d2){
+      if(!d1||!d2)return false;
+      // Dernier dimanche de mars (01h-04h) et dernier dimanche d'octobre (01h-04h)
+      var m1=d1.getUTCMonth(),h1=d1.getUTCHours(),day1=d1.getUTCDay();
+      // Mars (mois 2) ou Octobre (mois 9), entre 0h et 4h
+      if((m1===2||m1===9)&&h1>=0&&h1<=4){
+        // Vérifier que c'est le dernier dimanche (jour 25-31 et dimanche)
+        var dd=d1.getUTCDate();
+        if(dd>=25) return true; // approximation suffisante
+      }
+      return false;
+    }
     // COUPURES
-    if(pts.length>=20){var pasJ=m.pas/(24*60);if(pasJ>0){
+    if(pts.length>=20&&m.type!=='DEBIT_TS'){var pasJ=m.pas/(24*60);if(pasJ>0){
       var nbT=0,jM=0,mxG=0,mxF=null,mxT=null;
       for(var j=1;j<pts.length;j++){var gap=pts[j].dRaw-pts[j-1].dRaw;
-        if(gap>pasJ*1.5){var mn=Math.round(gap/pasJ)-1;jM+=mn;nbT++;if(gap>mxG){mxG=gap;mxF=pts[j-1].d;mxT=pts[j].d;}}}
-      if(nbT){var at=isPl?'Coupure pluvio':'Coupure volume';var gP=Math.round(mxG*24*60/m.pas)-1;
+        if(gap>pasJ*1.5){if(estChangementHeure(pts[j-1].d,pts[j].d))continue;var mn=Math.round(gap/pasJ)-1;jM+=mn;nbT++;if(gap>mxG){mxG=gap;mxF=pts[j-1].d;mxT=pts[j].d;}}}
+      if(nbT){var at=isPl?'Rupture de donnée Pluviométrie':'Rupture de donnée Volume';var gP=Math.round(mxG*24*60/m.pas)-1;
         A.push(Object.assign({},base,{anomalie:at,niveau:MESSAGES[at].niveau,date:fmtDate(mxF),
           valeur:jM+' mesure(s) manquante(s)',contexte:'plus gros trou : '+fmtDH(mxF)+' → '+fmtDH(mxT)+' ('+gP+' pas)'+(nbT>1?', '+nbT+' trous':''),
-          conseil:MESSAGES[at].msg}));}}}
+          conseil:estLong?'Vérifier la chaîne de mesure. Défaut capteur probable.':MESSAGES[at]?MESSAGES[at].msg:''}));}}}
     if(!nums.length)continue;var vals=nums.map(function(p){return p.v;});
     // NÉGATIFS
     var neg=nums.filter(function(p){return p.v<0;});
     if(neg.length){var at=isPl?'Pluvio négative':'Volume négatif';
       A.push(Object.assign({},base,{anomalie:at,niveau:MESSAGES[at].niveau,date:fmtDate(neg[0].d),
-        valeur:neg.length+' valeurs négatives',contexte:'ex: '+neg.slice(0,3).map(function(p){return rnd2(p.v);}).join(', '),conseil:MESSAGES[at].msg}));}
+        valeur:neg.length+' valeurs négatives',contexte:'ex: '+neg.slice(0,3).map(function(p){return rnd2(p.v);}).join(', '),conseil:estLong?'Vérifier la chaîne de mesure. Défaut capteur probable.':MESSAGES[at]?MESSAGES[at].msg:''}));}
     // PICS SANS PLUIE
     if(isVol&&vals.length>=10){
       // IQR calculé uniquement sur les heures SANS pluie (plus sensible aux pics anormaux)
       var valsSec=nums.filter(function(p){return !estPluie(p.dRaw);}).map(function(p){return p.v;});
       if(valsSec.length>=10){var so=valsSec.slice().sort(function(a,b){return a-b;});
       var n=so.length,q1=so[Math.floor((n-1)*.25)],q3=so[Math.floor((n-1)*.75)],iqr=q3-q1;
-      if(iqr>0){var lim=q3+K_IQR*iqr;var pics=nums.filter(function(p){return p.v>lim&&!estPluie(p.dRaw);});
+      if(iqr>0){var lim=q3+K_IQR*iqr;var pics=nums.filter(function(p){return p.v>lim&&estTempsSec6h(p.dRaw);});
         if(pics.length){var pk=pics.sort(function(a,b){return b.v-a.v;})[0];
           var moy=rnd2(vals.reduce(function(s,v){return s+v;},0)/vals.length);var ratio=moy>0?rnd2(pk.v/moy):0;
-          A.push(Object.assign({},base,{anomalie:'Pic sans pluviométrie',niveau:'Alerte',date:fmtDate(pk.d),valeur:'pic max : '+rnd2(pk.v),
+          A.push(Object.assign({},base,{anomalie:'Surdébit en Temps Sec',niveau:'Alerte',date:fmtDate(pk.d),valeur:'pic max : '+rnd2(pk.v),
             contexte:pics.length+' pic(s) sans pluie — moy '+moy+', max '+rnd2(pk.v)+(ratio>=2?' (×'+ratio+')':''),
-            conseil:MESSAGES['Pic sans pluviométrie'].msg,seuilPic:rnd2(lim)}));}}}}
+            conseil:MESSAGES['Surdébit en Temps Sec'].msg,seuilPic:rnd2(lim)}));}}}}
     // PROFILS PLATS
     if(isVol&&nums.length>=SEUIL_FIGE){var run=1,runs=[];
-      for(var j=1;j<nums.length;j++){if(nums[j].v===nums[j-1].v&&nums[j].v!==0)run++;
+      for(var j=1;j<nums.length;j++){if(nums[j].v===nums[j-1].v)run++;
         else{if(run>=SEUIL_FIGE)runs.push({from:j-run,to:j-1,val:nums[j-1].v,len:run});run=1;}}
       if(run>=SEUIL_FIGE)runs.push({from:nums.length-run,to:nums.length-1,val:nums[nums.length-1].v,len:run});
       for(var k=0;k<runs.length;k++){var r=runs[k],mp=nums[Math.floor((r.from+r.to)/2)];
-        var sec=estTempsSec6h(nums[r.from].dRaw);var at=sec?'Profil plat (temps sec)':'Profil plat (temps de pluie)';
-        A.push(Object.assign({},base,{anomalie:at,niveau:'Alerte',date:fmtDate(nums[r.from].d),valeur:'fixe à '+rnd2(r.val),
+        var sec=estTempsSec6h(nums[r.from].dRaw);
+        var estLong=r.len>=72; // 3 jours = critique
+        var at=estLong?'Défaut point de mesure':(sec?'Courbe Volumétrique Figée Temps Sec':'Courbe Volumétrique Figée Temps de pluie');
+        A.push(Object.assign({},base,{anomalie:at,niveau:estLong?'Critique':'Alerte',date:fmtDate(nums[r.from].d),valeur:'fixe à '+rnd2(r.val),
           contexte:'valeur '+rnd2(r.val)+' répétée '+r.len+' fois ('+fmtDH(nums[r.from].d)+' → '+fmtDH(nums[r.to].d)+')',
-          conseil:MESSAGES[at].msg}));}}
+          conseil:estLong?'Vérifier la chaîne de mesure. Défaut capteur probable.':MESSAGES[at]?MESSAGES[at].msg:''}));}}
   }
   // DÉCALAGE CHRONIQUE TS / VOLUME HORAIRE (par heure, en temps sec 6h < 0.2mm)
   var parPt={};for(var i=0;i<mesures.length;i++){var m=mesures[i];
@@ -227,10 +243,10 @@ function analyserComplet(mesures,dS,dE,seuilPlatH){
       // trouver le pire écart
       var pire=datesDec.sort(function(a,b){return Math.abs(b.ts-b.vol)-Math.abs(a.ts-a.vol);})[0];
       A.push({point:pt,mesure:'Volume vs Chronique TS',mType:'CROISEMENT',
-        anomalie:'Décalage TS / Volume > 15%',niveau:'Alerte',
+        anomalie:'Dérive chronique Temps Sec / volume réel',niveau:'Alerte',
         date:fmtDate(pire.d),valeur:pctEcart+'% des heures en temps sec',
         contexte:datesDec.length+'/'+nbSecTotal+' heures en écart — pire : vol='+pire.vol+' vs TS='+pire.ts+' le '+fmtDate(pire.d),
-        conseil:MESSAGES['Décalage TS / Volume > 15%'].msg});}}
+        conseil:MESSAGES['Dérive chronique Temps Sec / volume réel'].msg});}}
   return A;
 }
 
@@ -246,7 +262,7 @@ input.addEventListener('change',function(){if(input.files.length)charger(input.f
 ['dragleave','drop'].forEach(function(e){loader.addEventListener(e,function(ev){ev.preventDefault();loader.classList.remove('drag');});});
 loader.addEventListener('drop',function(ev){if(ev.dataTransfer.files.length)charger(ev.dataTransfer.files[0]);});
 document.getElementById('reset').addEventListener('click',function(){location.reload();});
-document.getElementById('bReset').addEventListener('click',function(){document.getElementById('q').value='';document.getElementById('fcat').value='';document.getElementById('fano').value='';activeFilter=null;document.querySelectorAll('.stat').forEach(function(x){x.classList.remove('active');});filtrer();});
+document.getElementById('bReset').addEventListener('click',function(){document.getElementById('q').value='';document.getElementById('fcat').value='';document.getElementById('fano').value='';activeFilter=null;document.querySelectorAll('.stat').forEach(function(x){x.classList.remove('active');});var allD=MESURES.reduce(function(a,m){if(m.dateMin)a.push(m.dateMin);if(m.dateMax)a.push(m.dateMax);return a;},[]);dStart=new Date(Math.min.apply(null,allD));dEnd=new Date(Math.max.apply(null,allD));document.getElementById('dStart').value=fmtDateISO(dStart);document.getElementById('dEnd').value=fmtDateISO(dEnd);document.getElementById('seuilPlat').value=CONFIG.SEUIL_FIGE_DEFAUT;appliquer();});
 function charger(f){logEl.innerHTML='';log('Lecture de '+f.name+'...');
     document.getElementById('pbar').style.display='block';document.getElementById('pfill').style.width='10%';var fr=new FileReader();
 fr.onload=function(e){try{var wb=XLSX.read(new Uint8Array(e.target.result),{type:'array'});
@@ -294,10 +310,15 @@ return '<tr><td><span class="dcat '+(ip?'dcat-pluvio':'dcat-vol')+'">'+(ip?'Pluv
 '<td><span class="dbadge '+d.fiab+'">'+d.fiabTxt+'</span></td><td class="dnum'+(d.vide?' dmanq':'')+'">'+(d.vide?d.vide+' / '+d.total:'---')+'</td></tr>';}).join('')+'</tbody>';}
 var SORT={key:'niveau',dir:1},activeFilter=null;
 var COULEURS_FIXES={
-    'Coupure volume':'#E8734A','Pic sans pluviométrie':'#F5A623',
-    'Décalage TS / Volume > 15%':'#4A90D9','Coupure pluvio':'#2EAD9A',
-    'Profil plat (temps sec)':'#9B72CF','Profil plat (temps de pluie)':'#E06B9F',
-    'Volume négatif':'#D4A03C','Pluvio négative':'#5CB87A'};
+    'Rupture de donnée Volume':'#E8734A',
+    'Surdébit en Temps Sec':'#F5A623',
+    'Dérive chronique Temps Sec / volume réel':'#4A90D9',
+    'Rupture de donnée Pluviométrie':'#2EAD9A',
+    'Courbe Volumétrique Figée Temps Sec':'#9B72CF',
+    'Courbe Volumétrique Figée Temps de pluie':'#E06B9F',
+    'Volume négatif':'#D4A03C',
+    'Pluvio négative':'#5CB87A',
+    'Défaut point de mesure':'#8B0000'};
   var PALETTE_FALLBACK=['#7C8CF5','#45B89C','#E8734A','#F5A623'];
   function couleurType(t){return COULEURS_FIXES[t]||PALETTE_FALLBACK[Object.keys(COULEURS_FIXES).length%PALETTE_FALLBACK.length];}
 function rendreAnomalies(){
@@ -364,7 +385,7 @@ panel.innerHTML='<div class="dp-title">'+esc(anom.mesure).slice(0,70)+' -- '+esc
 if(!serie){panel.innerHTML+='<div class="dp-nodata">S\u00e9rie non disponible.</div>';dtr.scrollIntoView({behavior:'smooth',block:'nearest'});return;}
 var zS=dStart,zE=dEnd;
 if(anom.date){var pp=anom.date.split('/');var aD=new Date(Date.UTC(parseInt(pp[2]),parseInt(pp[1])-1,parseInt(pp[0])));var mg=serie.pas<=5?1.5:3;zS=new Date(Math.max(dStart.getTime(),aD.getTime()-mg*864e5));zE=new Date(Math.min(dEnd.getTime(),aD.getTime()+mg*864e5));}
-var isTrou=anom.anomalie.indexOf('Coupure')>=0;
+var isTrou=anom.anomalie.indexOf('Rupture')>=0;
 var ptsAll=serie.pts.filter(function(p){return p.d>=zS&&p.d<=zE;});
 var pts=ptsAll.filter(function(p){return p.v!=null;});
 if(!pts.length){panel.innerHTML+='<div class="dp-nodata">Aucune donn\u00e9e.</div>';dtr.scrollIntoView({behavior:'smooth',block:'nearest'});return;}
@@ -376,9 +397,9 @@ var canvas=document.createElement('canvas');canvas.height=160;panel.appendChild(
     zoomBar.appendChild(zoomBtn);panel.appendChild(zoomBar);
 var maxP=600,step=pts.length>maxP?Math.ceil(pts.length/maxP):1;
 var labels=[],vals=[],colors=[],radii=[];
-for(var i=0;i<pts.length;i+=step){var p=pts[i];labels.push(serie.pas<=5?fmtDH(p.d):fmtDate(p.d));vals.push(rnd2(p.v));
+for(var i=0;i<pts.length;i+=step){var p=pts[i];labels.push(fmtDH(p.d));vals.push(rnd2(p.v));
 var isA=false;if(anom.anomalie.indexOf('gatif')>=0&&p.v<0)isA=true;
-if(anom.anomalie.indexOf('Profil plat')>=0){
+if(anom.anomalie.indexOf('Courbe Volum')>=0||anom.anomalie.indexOf('faut point')>=0){
         // colorer uniquement la plage figée, pas tous les points avec la même valeur
         if(!window._ppRange){window._ppRange=null;
           var rm=anom.contexte.match(/(\d{2}\/\d{2}\/\d{4})\s+(\d{2}:\d{2}).*?(\d{2}\/\d{2}\/\d{4})\s+(\d{2}:\d{2})/);
@@ -386,8 +407,8 @@ if(anom.anomalie.indexOf('Profil plat')>=0){
             window._ppRange={s:new Date(Date.UTC(+p1[2],p1[1]-1,+p1[0],+rm[2].split(':')[0],+rm[2].split(':')[1])),
               e:new Date(Date.UTC(+p2[2],p2[1]-1,+p2[0],+rm[4].split(':')[0],+rm[4].split(':')[1]))};}}
         if(window._ppRange&&p.d>=window._ppRange.s&&p.d<=window._ppRange.e&&p.v===parseFloat(anom.valeur.replace(/[^\d.-]/g,'')))isA=true;}
-if(anom.anomalie.indexOf('Pic')>=0&&anom.seuilPic&&p.v>anom.seuilPic)isA=true;
-if(anom.date&&fmtDate(p.d)===anom.date&&anom.anomalie.indexOf('Profil plat')<0&&anom.anomalie.indexOf('Coupure')<0)isA=true;
+if(anom.anomalie.indexOf('Surd')>=0&&anom.seuilPic){var picVal=parseFloat(String(anom.valeur).replace(/[^\d.-]/g,''));if(p.v===picVal)isA=true;}
+if(anom.date&&fmtDate(p.d)===anom.date&&anom.anomalie.indexOf('Courbe Volum')<0&&anom.anomalie.indexOf('faut point')<0&&anom.anomalie.indexOf('Rupture')<0&&anom.anomalie.indexOf('Surd')<0)isA=true;
 colors.push(isA?couleurType(anom.anomalie):'transparent');radii.push(isA?5:0);}
 var gapZones=[];
 if(isTrou){var pasJ=serie.pas/(24*60);var nL=[],nV=[],nC=[],nR=[];
@@ -403,12 +424,28 @@ cx.beginPath();cx.moveTo(x2,ys.top);cx.lineTo(x2,ys.bottom);cx.stroke();cx.setLi
 cx.fillStyle='rgba(220,38,38,.7)';cx.font='bold 10px sans-serif';cx.textAlign='center';
 cx.fillText('TROU',(x1+x2)/2,ys.top+14);});cx.restore();}};
 var isPluvioChart=/pluvio/i.test(anom.mesure);
+    // Ajouter pluvio horaire en arrière-plan si c'est un volume
+    var pluvioDs=null;
+    if(!isPluvioChart){
+      var p5m=MESURES.find(function(m){return m.type==='PLUVIO_5MIN';});
+      if(p5m){
+        var plHlocal=agregerPluvioHoraire(p5m,zS,zE);
+        var plVals=[];
+        for(var pi=0;pi<pts.length;pi+=step){
+          var pp=pts[pi];
+          var hk=Math.floor(pp.dRaw*24)/24;
+          plVals.push(rnd2(plHlocal.get(hk)||0));
+        }
+        pluvioDs={type:'line',data:plVals,borderColor:'rgba(70,180,140,.6)',backgroundColor:'rgba(70,180,140,.08)',
+          borderWidth:1.5,pointRadius:0,fill:true,tension:.3,yAxisID:'yPluie',label:'Pluie (mm/h)',order:3};
+      }
+    }
     detailChart=new Chart(canvas,{type:isPluvioChart?'bar':'line',data:{labels:labels,datasets:[isPluvioChart?
       {data:vals,backgroundColor:colors.map(function(c){return c==='transparent'?'rgba(27,111,232,.7)':c;}),
        borderColor:'transparent',borderRadius:1,barPercentage:1.0,categoryPercentage:1.0}:
-      {data:vals,borderColor:'#1B6FE8',borderWidth:1.5,pointBackgroundColor:colors,pointRadius:radii,pointHoverRadius:5,spanGaps:false,fill:{target:'origin',above:'rgba(27,111,232,.05)'},tension:.15}]},
+      {data:vals,borderColor:'#1B6FE8',borderWidth:1.5,pointBackgroundColor:colors,pointRadius:radii,pointHoverRadius:5,spanGaps:false,fill:{target:'origin',above:'rgba(27,111,232,.05)'},tension:.15}].concat(pluvioDs?[pluvioDs]:[])},
 plugins:[gapPl],options:{plugins:{legend:{display:false},tooltip:{callbacks:{label:function(c){return c.parsed.y!=null?'Valeur : '+c.parsed.y:'Manquant';}}},zoom:{zoom:{drag:{enabled:true,backgroundColor:'rgba(27,111,232,.08)',borderColor:'rgba(27,111,232,.3)',borderWidth:1},mode:'x'},pan:{enabled:false}}},
-scales:{x:{ticks:{maxTicksLimit:12,font:{size:9},maxRotation:45},grid:{display:false}},y:{ticks:{font:{size:10}},grid:{color:'#E4EAF3'}}},animation:{duration:300},interaction:{mode:'nearest',intersect:false}}});
+scales:{x:{ticks:{maxTicksLimit:12,font:{size:9},maxRotation:45},grid:{display:false}},y:{ticks:{font:{size:10}},grid:{color:'#E4EAF3'}},yPluie:{position:'right',ticks:{font:{size:9},color:'rgba(100,160,220,.5)'},grid:{display:false},title:{display:true,text:'mm/h',font:{size:9},color:'rgba(100,160,220,.5)'}}},animation:{duration:300},interaction:{mode:'nearest',intersect:false}}});
 dtr.scrollIntoView({behavior:'smooth',block:'nearest'});}
 async function exportExcel(){var wb=new ExcelJS.Workbook();
 var ws1=wb.addWorksheet('Disponibilit\u00e9');ws1.columns=[{header:'Mesure',key:'nom',width:45},{header:'Point',key:'point',width:22},{header:'Pas',key:'pas',width:8},{header:'Total',key:'total',width:10},{header:'Renseign\u00e9es',key:'rempli',width:12},{header:'Manquantes',key:'vide',width:12},{header:'Taux',key:'taux',width:10},{header:'Fiabilit\u00e9',key:'fiabTxt',width:16}];
