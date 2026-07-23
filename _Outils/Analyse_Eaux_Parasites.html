@@ -42,7 +42,8 @@ table.atab{width:100%;border-collapse:collapse;font-size:12.5px}.atab thead th{p
 .bl{display:flex;align-items:center;gap:12px;margin-bottom:20px}.bl .bt{font-family:var(--disp);font-size:14px;font-weight:700;color:var(--navy)}.bl .bs{font-size:12px;color:var(--muted)}.bl .au{margin-left:auto;font-size:12px;font-weight:600;color:#fff;background:linear-gradient(135deg,var(--accent),#1559BE);border-radius:99px;padding:7px 15px}
 #loader .ti{font-family:var(--disp);font-size:25px;font-weight:700;color:var(--navy);margin-bottom:8px}#loader .de{font-size:13px;color:var(--muted);line-height:1.6;margin-bottom:20px}
 .drop{display:block;border:1.5px dashed var(--line2);border-radius:14px;background:var(--panel2);padding:26px 20px;text-align:center;cursor:pointer;transition:all .15s}.drop:hover{border-color:var(--accent);background:#FBFDFF}.drop .t{font-size:13px;color:#334155;font-weight:600}.drop .s{font-size:12px;color:var(--faint);margin-top:4px}#loader.drag .drop{border-color:var(--accent);background:#eff5fe}
-#log{margin-top:14px;font-family:var(--mono);font-size:11.5px;color:var(--muted);max-height:140px;overflow:auto;line-height:1.7}#log .ok{color:var(--green)}#log .err{color:var(--red)}#log .warn{color:var(--amber)}.note{margin-top:12px;font-size:11.5px;color:var(--faint);line-height:1.6}#app{display:none}
+#log{margin-top:14px;font-family:var(--mono);font-size:11.5px;color:var(--muted);max-height:140px;overflow:auto;line-height:1.7}#log .ok{color:var(--green)}#log .err{color:var(--red)}#log .warn{color:var(--amber)}
+.pbar{height:6px;border-radius:3px;background:#E4EAF3;margin:8px 0;overflow:hidden}.pbar span{display:block;height:100%;border-radius:3px;background:linear-gradient(90deg,var(--accent),var(--teal));transition:width .3s}.note{margin-top:12px;font-size:11.5px;color:var(--faint);line-height:1.6}#app{display:none}
 .__ver-badge{position:fixed;right:10px;bottom:9px;z-index:40;display:flex;align-items:center;gap:8px;font-family:var(--mono);font-size:10.5px;background:rgba(255,255,255,.86);border:1px solid #E4EAF3;border-radius:8px;padding:3px 5px 3px 10px;backdrop-filter:blur(3px)}.__ver-txt{color:#93A2B8}.__ver-report{color:#B45309;background:rgba(217,119,6,.10);border:1px solid rgba(217,119,6,.22);border-radius:6px;padding:2px 8px;text-decoration:none;font-weight:600;cursor:pointer}.__ver-report:hover{background:rgba(217,119,6,.18)}@media print{.__ver-badge{display:none}}
 </style>
 </head>
@@ -53,6 +54,7 @@ table.atab{width:100%;border-collapse:collapse;font-size:12.5px}.atab thead th{p
 <div class="de">D&#233;posez un export Aquacalc (.xlsx / .xlsm). L&#8217;outil calcule les <b>taux de disponibilit&#233;</b>, &#233;value la <b>fiabilit&#233;</b>, et d&#233;tecte les <b>anomalies</b> en croisant pluviom&#233;trie et volumes.</div>
 <label class="drop" for="fi"><div style="font-size:26px;margin-bottom:6px">&#128202;</div><div class="t">Glissez votre fichier ici, ou cliquez pour choisir</div><div class="s">.xlsx &#183; .xlsm</div><input id="fi" type="file" accept=".xlsm,.xlsx,.xls" style="display:none"></label>
 <div id="log"></div>
+    <div class="pbar" id="pbar" style="display:none"><span id="pfill" style="width:0%"></span></div>
 <div class="note">&#8505;&#65039; Tout se passe dans votre navigateur. Aucune donn&#233;e n&#8217;est envoy&#233;e sur internet.</div>
 </div></div>
 <div id="app">
@@ -94,6 +96,17 @@ function fmtDate(d){if(!d)return '';return ('0'+d.getUTCDate()).slice(-2)+'/'+('
 function fmtDateISO(d){if(!d)return '';return d.getUTCFullYear()+'-'+('0'+(d.getUTCMonth()+1)).slice(-2)+'-'+('0'+d.getUTCDate()).slice(-2);}
 function fmtDH(d){if(!d)return '';return fmtDate(d)+' '+('0'+d.getUTCHours()).slice(-2)+':'+('0'+d.getUTCMinutes()).slice(-2);}
 function rnd2(v){return Math.round(v*100)/100;}
+// ===== CONFIGURATION — modifiez ces valeurs sans toucher au reste du code =====
+var CONFIG = {
+  VERSION: 'v3.0',
+  SEUIL_PLUIE_6H: 0.2,        // mm — temps sec si pluie 6h < cette valeur
+  SEUIL_PLUIE_HORAIRE: 0.1,   // mm — "il pleut" si pluvio horaire > cette valeur
+  K_IQR: 3,                    // sensibilité des pics (Q3 + K × IQR)
+  SEUIL_DECALAGE: 0.15,        // 15% — seuil de décalage TS/Volume
+  SEUIL_FIGE_DEFAUT: 12,       // heures — profil plat (défaut, modifiable à l'écran)
+};
+// ===== FIN CONFIGURATION =====
+
 var MESSAGES={
   'Coupure pluvio':{niveau:'Critique',msg:"Défaut de transmission de la donnée. Invalider/reconstruire la variable et vérifier la chaîne de mesure."},
   'Pluvio négative':{niveau:'Critique',msg:"Invalidation automatique requise. Valeur physiquement impossible."},
@@ -142,15 +155,15 @@ function agregerPluvioHoraire(p5,dS,dE){
   return map;
 }
 function analyserComplet(mesures,dS,dE,seuilPlatH){
-  var A=[],SEUIL_FIGE=seuilPlatH||12,K_IQR=3,SEUIL_DEC=0.15;
+  var A=[],SEUIL_FIGE=seuilPlatH||CONFIG.SEUIL_FIGE_DEFAUT,K_IQR=CONFIG.K_IQR,SEUIL_DEC=CONFIG.SEUIL_DECALAGE;
   var p5=mesures.find(function(m){return m.type==='PLUVIO_5MIN';});
   var plH=agregerPluvioHoraire(p5,dS,dE);
-  function estPluie(dR){return(plH.get(Math.floor(dR*24)/24)||0)>0.1;}
+  function estPluie(dR){return(plH.get(Math.floor(dR*24)/24)||0)>CONFIG.SEUIL_PLUIE_HORAIRE;}
   // temps sec = somme des pluies sur les 6h précédentes < 0.2 mm
   function estTempsSec6h(dR){
     var somme=0;
     for(var hh=0;hh<6;hh++){var clef=Math.floor((dR-hh/24)*24)/24;somme+=(plH.get(clef)||0);}
-    return somme<0.2;
+    return somme<CONFIG.SEUIL_PLUIE_6H;
   }
   for(var i=0;i<mesures.length;i++){var m=mesures[i];
     var pts=m.pts.filter(function(p){return p.d>=dS&&p.d<=dE;});if(!pts.length)continue;
@@ -234,19 +247,27 @@ input.addEventListener('change',function(){if(input.files.length)charger(input.f
 loader.addEventListener('drop',function(ev){if(ev.dataTransfer.files.length)charger(ev.dataTransfer.files[0]);});
 document.getElementById('reset').addEventListener('click',function(){location.reload();});
 document.getElementById('bReset').addEventListener('click',function(){document.getElementById('q').value='';document.getElementById('fcat').value='';document.getElementById('fano').value='';activeFilter=null;document.querySelectorAll('.stat').forEach(function(x){x.classList.remove('active');});filtrer();});
-function charger(f){logEl.innerHTML='';log('Lecture de '+f.name+'...');var fr=new FileReader();
+function charger(f){logEl.innerHTML='';log('Lecture de '+f.name+'...');
+    document.getElementById('pbar').style.display='block';document.getElementById('pfill').style.width='10%';var fr=new FileReader();
 fr.onload=function(e){try{var wb=XLSX.read(new Uint8Array(e.target.result),{type:'array'});
 var sh=wb.SheetNames.find(function(n){return /export.*donn/i.test(n);})||wb.SheetNames.find(function(n){return /data/i.test(n);})||wb.SheetNames[0];
 var aoa=XLSX.utils.sheet_to_json(wb.Sheets[sh],{header:1,defval:null,raw:true});
+document.getElementById('pfill').style.width='40%';
 MESURES=lireFichier(aoa);log(MESURES.length+' mesures','ok');
+document.getElementById('pfill').style.width='70%';
 var p5=MESURES.find(function(m){return m.type==='PLUVIO_5MIN';});
 if(!p5){var pa=MESURES.find(function(m){return /pluvio/i.test(m.nom);});if(pa)log('Pluvio au pas de '+pa.pas+' min (attendu 5 min)','warn');else log('Aucune pluvio','warn');}
 else if(p5.pas!==5)log('Pluvio 5min mais pas reel='+p5.pas,'warn');else log('Pluvio 5 min OK','ok');
 var allD=MESURES.reduce(function(a,m){if(m.dateMin)a.push(m.dateMin);if(m.dateMax)a.push(m.dateMax);return a;},[]);
 dStart=new Date(Math.min.apply(null,allD));dEnd=new Date(Math.max.apply(null,allD));
 document.getElementById('dStart').value=fmtDateISO(dStart);document.getElementById('dEnd').value=fmtDateISO(dEnd);
-appliquer();loader.style.display='none';document.getElementById('app').style.display='block';
-}catch(err){log('Erreur : '+err.message,'err');}};fr.readAsArrayBuffer(f);}
+document.getElementById('pfill').style.width='100%';setTimeout(function(){appliquer();loader.style.display='none';document.getElementById('app').style.display='block';},200);
+}catch(err){
+  var msg=err.message||'Erreur inconnue';
+  if(msg.indexOf('Cannot read')>=0||msg.indexOf('null')>=0) msg='Ce fichier ne semble pas être un export Aquacalc valide. Vérifiez que l\'onglet « Export des données » ou « Data » est présent.';
+  else if(msg.indexOf('sheet')>=0||msg.indexOf('Sheet')>=0) msg='Aucun onglet reconnu dans ce fichier. L\'outil cherche un onglet nommé « Export des données » ou « Data ».';
+  else if(msg.indexOf('Invalid')>=0) msg='Le fichier est corrompu ou dans un format non supporté. Essayez de le ré-enregistrer depuis Excel.';
+  log('Erreur : '+msg,'err');}};fr.readAsArrayBuffer(f);}
 document.getElementById('bApply').addEventListener('click',appliquer);
 document.getElementById('dStart').addEventListener('change',appliquer);
 document.getElementById('dEnd').addEventListener('change',appliquer);
@@ -397,6 +418,19 @@ var ws2=wb.addWorksheet('Anomalies');ws2.columns=[{header:'Niveau',key:'niveau',
 ANOMALIES.forEach(function(a){var r=ws2.addRow(a);r.getCell(1).fill={type:'pattern',pattern:'solid',fgColor:{argb:a.niveau==='Critique'?'FFFEE2E2':'FFFEF3C7'}};});
 ws2.getRow(1).eachCell(function(c){c.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FF182F52'}};c.font={bold:true,color:{argb:'FFFFFFFF'}};});
 ws2.autoFilter='A1:H1';ws2.views=[{state:'frozen',ySplit:1}];
+// Onglet Paramètres (traçabilité)
+var ws3=wb.addWorksheet('Paramètres');
+ws3.columns=[{header:'Paramètre',key:'param',width:35},{header:'Valeur',key:'val',width:45}];
+ws3.addRow({param:'Version de l\'outil',val:'Analyse Eaux Parasites v3.0'});
+ws3.addRow({param:'Date de l\'analyse',val:new Date().toLocaleString('fr-FR')});
+ws3.addRow({param:'Intervalle analysé',val:fmtDate(dStart)+' → '+fmtDate(dEnd)});
+ws3.addRow({param:'Seuil profil plat',val:document.getElementById('seuilPlat').value+' heures'});
+ws3.addRow({param:'Seuil pics (K×IQR)',val:'K = '+CONFIG.K_IQR});
+ws3.addRow({param:'Seuil décalage TS/Vol',val:Math.round(CONFIG.SEUIL_DECALAGE*100)+'%'});
+ws3.addRow({param:'Temps sec',val:'pluie 6h < '+CONFIG.SEUIL_PLUIE_6H+' mm'});
+ws3.addRow({param:'Nombre de mesures',val:String(MESURES.length)});
+ws3.addRow({param:'Nombre d\'anomalies',val:String(ANOMALIES.length)});
+ws3.getRow(1).eachCell(function(c){c.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FF182F52'}};c.font={bold:true,color:{argb:'FFFFFFFF'}};});
 var buf=await wb.xlsx.writeBuffer();var d=new Date(),ds=d.getFullYear()+('0'+(d.getMonth()+1)).slice(-2)+('0'+d.getDate()).slice(-2);
 var a=document.createElement('a');a.href=URL.createObjectURL(new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}));a.download='Analyse_EP_'+ds+'.xlsx';a.click();URL.revokeObjectURL(a.href);}
 })();
