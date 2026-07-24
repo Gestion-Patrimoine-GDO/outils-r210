@@ -212,8 +212,11 @@ function analyserComplet(mesures,dS,dE,seuilPlatH){
       if(iqr>0){var lim=q3+K_IQR*iqr;var pics=nums.filter(function(p){return p.v>lim&&estTempsSec6h(p.dRaw);});
         if(pics.length){var pk=pics.sort(function(a,b){return b.v-a.v;})[0];
           var moy=rnd2(vals.reduce(function(s,v){return s+v;},0)/vals.length);var ratio=moy>0?rnd2(pk.v/moy):0;
+          var picsTri=pics.slice().sort(function(a,b){return a.dRaw-b.dRaw;});
+          var plage=picsTri.length>1?(' du '+fmtDate(picsTri[0].d)+' au '+fmtDate(picsTri[picsTri.length-1].d)):(' le '+fmtDate(picsTri[0].d));
           A.push(Object.assign({},base,{anomalie:'Surdébit en Temps Sec',niveau:'Alerte',date:fmtDate(pk.d),valeur:'pic max : '+rnd2(pk.v),
-            contexte:pics.length+' pic(s) sans pluie — moy '+moy+', max '+rnd2(pk.v)+(ratio>=2?' (×'+ratio+')':''),
+            contexte:pics.length+' pic(s) sans pluie'+plage+' — moy '+moy+', max '+rnd2(pk.v)+(ratio>=2?' (×'+ratio+')':''),
+            picsH:picsTri.map(function(p){return Math.floor(p.dRaw*24);}),
             conseil:MESSAGES['Surdébit en Temps Sec'].msg,seuilPic:rnd2(lim)}));}}}}
     // PROFILS PLATS
     if(isVol&&nums.length>=SEUIL_FIGE){var run=1,runs=[];
@@ -385,8 +388,8 @@ var msgDef=MESSAGES[anom.anomalie];
 var serie=MESURES.find(function(m){return m.nom===anom.mesure;});
 if(!serie&&anom.mesure==='Volume vs Chronique TS')serie=MESURES.find(function(m){return m.point===anom.point&&(m.type==='VOL_HORAIRE'||m.type==='VOL_TOTAL');});
 panel.innerHTML='<div class="dp-title">'+esc(anom.mesure).slice(0,70)+' -- '+esc(anom.point)+'</div>'+
-'<div class="dp-info"><b>Anomalie :</b> '+esc(anom.anomalie)+(anom.date?' | <b>Date :</b> '+esc(anom.date):'')+(anom.contexte?' | '+esc(anom.contexte):'')+'</div>'+
-(anom.date?'<div style="font-size:11px;color:var(--faint);margin-bottom:6px">Graphique zoom\u00e9 autour de la date</div>':'')+
+'<div class="dp-info"><b>Anomalie :</b> '+esc(anom.anomalie)+(anom.date?' | <b>'+(anom.anomalie.indexOf('Surd')>=0?'Pic max le':'Date :')+'</b> '+esc(anom.date):'')+(anom.contexte?' | '+esc(anom.contexte):'')+'</div>'+
+(anom.date?'<div style="font-size:11px;color:var(--faint);margin-bottom:6px">Graphique zoom\u00e9 autour '+(anom.anomalie.indexOf('Surd')>=0?'du pic max — les autres pics peuvent \u00eatre hors fen\u00eatre':'de la date')+'</div>':'')+
 (msgDef?'<div class="dp-conseil"><b>'+(anom.niveau==='Critique'?'\ud83d\udd34':'\ud83d\udfe0')+' Conseil :</b> '+esc(msgDef.msg)+'</div>':'');
 if(!serie){panel.innerHTML+='<div class="dp-nodata">S\u00e9rie non disponible.</div>';dtr.scrollIntoView({behavior:'smooth',block:'nearest'});return;}
 var zS=dStart,zE=dEnd;
@@ -413,8 +416,8 @@ if(anom.anomalie.indexOf('Courbe Volum')>=0||anom.anomalie.indexOf('faut point')
             window._ppRange={s:new Date(Date.UTC(+p1[2],p1[1]-1,+p1[0],+rm[2].split(':')[0],+rm[2].split(':')[1])),
               e:new Date(Date.UTC(+p2[2],p2[1]-1,+p2[0],+rm[4].split(':')[0],+rm[4].split(':')[1]))};}}
         if(window._ppRange&&p.d>=window._ppRange.s&&p.d<=window._ppRange.e&&p.v===parseFloat(anom.valeur.replace(/[^\d.-]/g,'')))isA=true;}
-if(anom.anomalie.indexOf('Surd')>=0&&anom.seuilPic){var picVal=parseFloat(String(anom.valeur).replace(/[^\d.-]/g,''));if(p.v===picVal)isA=true;}
-// règle générique de date supprimée — chaque type a sa propre logique de coloration
+if(anom.anomalie.indexOf('Surd')>=0&&anom.picsH){if(anom.picsH.indexOf(Math.floor(p.dRaw*24))>=0)isA=true;}
+if(anom.date&&fmtDate(p.d)===anom.date&&anom.anomalie.indexOf('Courbe Volum')<0&&anom.anomalie.indexOf('faut point')<0&&anom.anomalie.indexOf('Rupture')<0&&anom.anomalie.indexOf('Surd')<0)isA=true;
 colors.push(isA?couleurType(anom.anomalie):'transparent');radii.push(isA?5:0);}
 var gapZones=[];
 if(isTrou){var pasJ=serie.pas/(24*60);var nL=[],nV=[],nC=[],nR=[];
