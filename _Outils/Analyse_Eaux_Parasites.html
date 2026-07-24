@@ -113,9 +113,9 @@ var MESSAGES={
   'Rupture de donnée Volume':{niveau:'Critique',msg:"Défaut de transmission de la donnée. Invalider/reconstruire la variable et vérifier la chaîne de mesure."},
   'Volume négatif':{niveau:'Critique',msg:"Vérifier le débit des pompes reporté sur AQC. Merci de réaliser un tarage."},
   'Surdébit en Temps Sec':{niveau:'Alerte',msg:"Si la valeur correspond à un fait réel (ressuyage par exemple) vous pouvez la conserver. Sinon, pour plus de cohérence, il est possible de reconstruire le volume ou de l'invalider."},
-  'Courbe Volumétrique Figée Temps Sec':{niveau:'Alerte',msg:"Possible bouchage de pompe. Veuillez reconstruire la donnée avec la chronique."},
+  'Courbe Volumétrique Figée Temps Sec':{niveau:'Alerte',msg:"Anomalie de fonctionnement du pompage ou donnée non représentative liée à une maintenance. Veuillez invalider la donnée ou la reconstruire à partir de la chronique."},
   'Défaut point de mesure':{niveau:'Critique',msg:'Vérifier la chaîne de mesure. Défaut capteur probable.'},
-  'Courbe Volumétrique Figée Temps de pluie':{niveau:'Alerte',msg:"Possible surcharge hydraulique. Veuillez invalider la donnée pour plus de cohérence de calcul."},
+  'Courbe Volumétrique Figée Temps de pluie':{niveau:'Alerte',msg:"Surcharge hydraulique ou donnée non représentative liée à une maintenance. Veuillez invalider la donnée ou la reconstruire à partir de la chronique."},
   'Dérive chronique Temps Sec / volume réel':{niveau:'Alerte',msg:"Dérive importante entre chronique et volume réel. Possibilité de reconstruire le volume à partir de la chronique ou inversement selon le cas."}
 };
 function lireFichier(aoa){
@@ -155,9 +155,13 @@ function agregerPluvioHoraire(p5,dS,dE){
   p5.pts.filter(function(p){return p.d>=dS&&p.d<=dE&&p.v!=null&&p.v>=0;}).forEach(function(p){var h=Math.floor(p.dRaw*24)/24;map.set(h,(map.get(h)||0)+p.v);});
   return map;
 }
+function trouverPluvio(mesures){
+  // Toujours la pluvio HORAIRE (pas ~60 min) pour les calculs. Pas de fallback.
+  return mesures.find(function(m){return m.type==='PLUVIO_H'&&m.pas>=55&&m.pas<=65;})||null;
+}
 function analyserComplet(mesures,dS,dE,seuilPlatH){
   var A=[],SEUIL_FIGE=seuilPlatH||CONFIG.SEUIL_FIGE_DEFAUT,K_IQR=CONFIG.K_IQR,SEUIL_DEC=CONFIG.SEUIL_DECALAGE;
-  var p5=mesures.find(function(m){return m.type==='PLUVIO_5MIN';});
+  var p5=trouverPluvio(mesures);
   var plH=agregerPluvioHoraire(p5,dS,dE);
   function estPluie(dR){return(plH.get(Math.floor(dR*24)/24)||0)>CONFIG.SEUIL_PLUIE_HORAIRE;}
   // temps sec = somme des pluies sur les 6h précédentes < 0.2 mm
@@ -198,7 +202,7 @@ function analyserComplet(mesures,dS,dE,seuilPlatH){
     var neg=nums.filter(function(p){return p.v<0;});
     if(neg.length){var at=isPl?'Pluvio négative':'Volume négatif';
       A.push(Object.assign({},base,{anomalie:at,niveau:MESSAGES[at].niveau,date:fmtDate(neg[0].d),
-        valeur:neg.length+' valeurs négatives',contexte:'ex: '+neg.slice(0,3).map(function(p){return rnd2(p.v);}).join(', '),conseil:estLong?'Vérifier la chaîne de mesure. Défaut capteur probable.':MESSAGES[at]?MESSAGES[at].msg:''}));}
+        valeur:neg.length+' valeurs négatives',contexte:'ex: '+neg.slice(0,3).map(function(p){return rnd2(p.v);}).join(', '),picNeg:neg.sort(function(a,b){return a.v-b.v;})[0].v,conseil:estLong?'Vérifier la chaîne de mesure. Défaut capteur probable.':MESSAGES[at]?MESSAGES[at].msg:''}));}
     // PICS SANS PLUIE
     if(isVol&&vals.length>=10){
       // IQR calculé uniquement sur les heures SANS pluie (plus sensible aux pics anormaux)
@@ -272,8 +276,10 @@ document.getElementById('pfill').style.width='40%';
 MESURES=lireFichier(aoa);log(MESURES.length+' mesures','ok');
 document.getElementById('pfill').style.width='70%';
 var p5=MESURES.find(function(m){return m.type==='PLUVIO_5MIN';});
-if(!p5){var pa=MESURES.find(function(m){return /pluvio/i.test(m.nom);});if(pa)log('Pluvio au pas de '+pa.pas+' min (attendu 5 min)','warn');else log('Aucune pluvio','warn');}
-else if(p5.pas!==5)log('Pluvio 5min mais pas reel='+p5.pas,'warn');else log('Pluvio 5 min OK','ok');
+var pH=MESURES.find(function(m){return m.type==='PLUVIO_H';});
+if(pH)log('Pluvio horaire détectée ('+pH.pts.length+' mesures) — utilisée pour les calculs.','ok');
+if(p5)log('Pluvio 5 min détectée ('+p5.pts.length+' mesures).','ok');
+if(!pH&&!p5)log('Aucune pluviométrie détectée.','warn');
 var allD=MESURES.reduce(function(a,m){if(m.dateMin)a.push(m.dateMin);if(m.dateMax)a.push(m.dateMax);return a;},[]);
 dStart=new Date(Math.min.apply(null,allD));dEnd=new Date(Math.max.apply(null,allD));
 document.getElementById('dStart').value=fmtDateISO(dStart);document.getElementById('dEnd').value=fmtDateISO(dEnd);
@@ -295,8 +301,8 @@ if(ds)dStart=new Date(ds+'T00:00:00Z');if(de)dEnd=new Date(de+'T23:59:59Z');
 document.getElementById('recap').textContent='du '+fmtDate(dStart)+' au '+fmtDate(dEnd);
 document.getElementById('sub').textContent=fmtDate(dStart)+' -> '+fmtDate(dEnd);
 var ad=document.getElementById('alerts');ad.innerHTML='';
-var p5=MESURES.find(function(m){return m.type==='PLUVIO_5MIN';});
-if(!p5){var pa=MESURES.find(function(m){return /pluvio/i.test(m.nom);});if(pa)ad.innerHTML='<div class="alert alert-warn"><span>&#9888;</span>Pluvio au pas de <b>'+pa.pas+' min</b> (attendu 5 min).</div>';}
+var pluv=trouverPluvio(MESURES);
+if(!pluv)ad.innerHTML='<div class="alert alert-warn"><span>&#9888;</span>Aucune pluviométrie détectée. Les analyses croisées ne sont pas disponibles.</div>';
 DISPO=calculerDispo(MESURES,dStart,dEnd);rendreDispo();
 var sp=parseInt(document.getElementById('seuilPlat').value)||12;
 ANOMALIES=analyserComplet(MESURES,dStart,dEnd,sp);rendreAnomalies();}
@@ -398,7 +404,7 @@ var canvas=document.createElement('canvas');canvas.height=160;panel.appendChild(
 var maxP=600,step=pts.length>maxP?Math.ceil(pts.length/maxP):1;
 var labels=[],vals=[],colors=[],radii=[];
 for(var i=0;i<pts.length;i+=step){var p=pts[i];labels.push(fmtDH(p.d));vals.push(rnd2(p.v));
-var isA=false;if(anom.anomalie.indexOf('gatif')>=0&&p.v<0)isA=true;
+var isA=false;if(anom.anomalie.indexOf('gatif')>=0&&anom.picNeg!=null&&p.v===anom.picNeg)isA=true;
 if(anom.anomalie.indexOf('Courbe Volum')>=0||anom.anomalie.indexOf('faut point')>=0){
         // colorer uniquement la plage figée, pas tous les points avec la même valeur
         if(!window._ppRange){window._ppRange=null;
@@ -408,7 +414,7 @@ if(anom.anomalie.indexOf('Courbe Volum')>=0||anom.anomalie.indexOf('faut point')
               e:new Date(Date.UTC(+p2[2],p2[1]-1,+p2[0],+rm[4].split(':')[0],+rm[4].split(':')[1]))};}}
         if(window._ppRange&&p.d>=window._ppRange.s&&p.d<=window._ppRange.e&&p.v===parseFloat(anom.valeur.replace(/[^\d.-]/g,'')))isA=true;}
 if(anom.anomalie.indexOf('Surd')>=0&&anom.seuilPic){var picVal=parseFloat(String(anom.valeur).replace(/[^\d.-]/g,''));if(p.v===picVal)isA=true;}
-if(anom.date&&fmtDate(p.d)===anom.date&&anom.anomalie.indexOf('Courbe Volum')<0&&anom.anomalie.indexOf('faut point')<0&&anom.anomalie.indexOf('Rupture')<0&&anom.anomalie.indexOf('Surd')<0)isA=true;
+// règle générique de date supprimée — chaque type a sa propre logique de coloration
 colors.push(isA?couleurType(anom.anomalie):'transparent');radii.push(isA?5:0);}
 var gapZones=[];
 if(isTrou){var pasJ=serie.pas/(24*60);var nL=[],nV=[],nC=[],nR=[];
@@ -427,17 +433,17 @@ var isPluvioChart=/pluvio/i.test(anom.mesure);
     // Ajouter pluvio horaire en arrière-plan si c'est un volume
     var pluvioDs=null;
     if(!isPluvioChart){
-      var p5m=MESURES.find(function(m){return m.type==='PLUVIO_5MIN';});
+      var p5m=trouverPluvio(MESURES);
       if(p5m){
         var plHlocal=agregerPluvioHoraire(p5m,zS,zE);
         var plVals=[];
         for(var pi=0;pi<pts.length;pi+=step){
           var pp=pts[pi];
           var hk=Math.floor(pp.dRaw*24)/24;
-          plVals.push(rnd2(plHlocal.get(hk)||0));
+          plVals.push(-rnd2(plHlocal.get(hk)||0));
         }
         pluvioDs={type:'line',data:plVals,borderColor:'rgba(70,180,140,.6)',backgroundColor:'rgba(70,180,140,.08)',
-          borderWidth:1.5,pointRadius:0,fill:true,tension:.3,yAxisID:'yPluie',label:'Pluie (mm/h)',order:3};
+          borderWidth:1.5,pointRadius:0,fill:true,tension:.3,yAxisID:'yPluie',label:'Pluie (mm/h)',tooltip:{callbacks:{label:function(ctx){return 'Pluie : '+Math.abs(ctx.parsed.y)+' mm/h';}}},order:3};
       }
     }
     detailChart=new Chart(canvas,{type:isPluvioChart?'bar':'line',data:{labels:labels,datasets:[isPluvioChart?
